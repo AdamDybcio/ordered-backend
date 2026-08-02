@@ -1,3 +1,23 @@
 spring:
   application:
     name: ordered-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ordered
+    username: ordered
+    password: ordered
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+server:
+  port: 9090

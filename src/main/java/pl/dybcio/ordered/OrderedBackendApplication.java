@@ -1,4 +1,4 @@
-package pl.dybcio.ordered_backend;
+package pl.dybcio.ordered;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
