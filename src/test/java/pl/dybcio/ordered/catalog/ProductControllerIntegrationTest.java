@@ -43,10 +43,13 @@ class ProductControllerIntegrationTest {
                 restTemplate.postForEntity("/api/products", request, ProductResponse.class);
 
         assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(createResponse.getBody()).isNotNull();
-        assertThat(createResponse.getBody().name()).isEqualTo("Testowy produkt");
 
-        Long createdId = createResponse.getBody().id();
+        ProductResponse createdProduct = createResponse.getBody();
+        assertThat(createdProduct).isNotNull();
+        assertThat(createdProduct.id()).isNotNull();
+        assertThat(createdProduct.name()).isEqualTo("Testowy produkt");
+
+        Long createdId = createdProduct.id();
 
         ResponseEntity<ProductResponse> getResponse =
                 restTemplate.getForEntity("/api/products/" + createdId, ProductResponse.class);
