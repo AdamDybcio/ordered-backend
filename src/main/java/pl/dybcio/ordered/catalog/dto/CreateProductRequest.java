@@ -15,6 +15,7 @@ public record CreateProductRequest(
 
         @NotNull(message = "Cena jest wymagana")
         @Positive(message = "Cena musi być większa od zera")
+        @jakarta.validation.constraints.Digits(integer = 8, fraction = 2, message = "Cena może mieć maksymalnie 2 miejsca po przecinku")
         BigDecimal price,
 
         @NotNull(message = "Ilość jest wymagana")
