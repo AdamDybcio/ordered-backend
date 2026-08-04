@@ -3,6 +3,7 @@
 help: ## Show this help message
 	@echo Available commands:
 	@echo   up                 - Start local infrastructure (Postgres) in Docker
+	@echo   up-full            - Start full stack in Docker (Postgres + app), for pre-deploy sanity checks
 	@echo   down               - Stop local infrastructure
 	@echo   restart            - Restart local infrastructure
 	@echo   logs               - Tail logs from local infrastructure
@@ -17,6 +18,9 @@ help: ## Show this help message
 
 up: ## Start local infrastructure (Postgres) in Docker
 	docker compose up -d
+
+up-full: ## Start full stack in Docker (Postgres + app), for pre-deploy sanity checks
+	docker compose --profile full up -d --build
 
 down: ## Stop local infrastructure
 	docker compose down

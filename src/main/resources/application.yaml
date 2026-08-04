@@ -20,4 +20,4 @@ management:
         include: health,info,metrics
 
 server:
-  port: 9090
+  port: ${SERVER_PORT:9090}
