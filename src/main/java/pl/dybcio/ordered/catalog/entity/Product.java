@@ -1,7 +1,6 @@
 package pl.dybcio.ordered.catalog.entity;
 
 import jakarta.persistence.*;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,12 +22,6 @@ public class Product {
 
   @Column(columnDefinition = "TEXT")
   private String description;
-
-  @Column(nullable = false, precision = 10, scale = 2)
-  private BigDecimal price;
-
-  @Column(name = "stock_quantity", nullable = false)
-  private Integer stockQuantity = 0;
 
   @Column(name = "created_at", nullable = false)
   private LocalDateTime createdAt = LocalDateTime.now();

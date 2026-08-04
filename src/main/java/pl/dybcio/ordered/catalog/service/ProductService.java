@@ -7,14 +7,23 @@ import pl.dybcio.ordered.catalog.dto.CreateProductRequest;
 import pl.dybcio.ordered.catalog.dto.ProductResponse;
 import pl.dybcio.ordered.catalog.entity.Product;
 import pl.dybcio.ordered.catalog.repository.ProductRepository;
+import pl.dybcio.ordered.inventory.service.StockService;
+import pl.dybcio.ordered.pricing.service.PricingService;
 
 @Service
 public class ProductService {
 
   private final ProductRepository productRepository;
+  private final StockService stockService;
+  private final PricingService pricingService;
 
-  public ProductService(ProductRepository productRepository) {
+  public ProductService(
+      ProductRepository productRepository,
+      StockService stockService,
+      PricingService pricingService) {
     this.productRepository = productRepository;
+    this.stockService = stockService;
+    this.pricingService = pricingService;
   }
 
   @Transactional
@@ -22,10 +31,12 @@ public class ProductService {
     Product product = new Product();
     product.setName(request.name());
     product.setDescription(request.description());
-    product.setPrice(request.price());
-    product.setStockQuantity(request.stockQuantity());
 
     Product saved = productRepository.save(product);
+
+    stockService.initializeStock(saved.getId(), request.stockQuantity());
+    pricingService.setPrice(saved.getId(), request.price());
+
     return toResponse(saved);
   }
 
@@ -46,7 +57,7 @@ public class ProductService {
         product.getId(),
         product.getName(),
         product.getDescription(),
-        product.getPrice(),
-        product.getStockQuantity());
+        pricingService.getCurrentPrice(product.getId()),
+        stockService.getQuantity(product.getId()));
   }
 }
