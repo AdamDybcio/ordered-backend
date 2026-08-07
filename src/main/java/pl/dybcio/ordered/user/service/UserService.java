@@ -1,0 +1,41 @@
+package pl.dybcio.ordered.user.service;
+
+import java.util.Set;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import pl.dybcio.ordered.user.dto.RegisterRequest;
+import pl.dybcio.ordered.user.dto.UserResponse;
+import pl.dybcio.ordered.user.entity.Role;
+import pl.dybcio.ordered.user.entity.User;
+import pl.dybcio.ordered.user.repository.UserRepository;
+
+@Service
+@RequiredArgsConstructor
+public class UserService {
+
+  private final UserRepository userRepository;
+  private final PasswordEncoder passwordEncoder;
+
+  @Transactional
+  public UserResponse register(RegisterRequest request) {
+    if (userRepository.existsByEmail(request.email())) {
+      throw new EmailAlreadyTakenException(request.email());
+    }
+
+    User user =
+        User.builder()
+            .email(request.email())
+            .password(passwordEncoder.encode(request.password()))
+            .firstName(request.firstName())
+            .lastName(request.lastName())
+            .roles(Set.of(Role.USER))
+            .build();
+
+    User saved = userRepository.save(user);
+
+    return new UserResponse(
+        saved.getId(), saved.getEmail(), saved.getFirstName(), saved.getLastName());
+  }
+}
