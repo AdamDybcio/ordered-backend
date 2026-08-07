@@ -21,3 +21,8 @@ management:
 
 server:
   port: ${SERVER_PORT:9090}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-prod-min-256-bits-long-please-replace}
+    expiration-ms: ${JWT_EXPIRATION_MS:3600000}

@@ -10,7 +10,7 @@ import pl.dybcio.ordered.catalog.dto.ProductResponse;
 import pl.dybcio.ordered.catalog.service.ProductService;
 
 @RestController
-@RequestMapping("/api/products")
+@RequestMapping("/api/v1/products")
 public class ProductController {
 
   private final ProductService productService;
@@ -23,7 +23,7 @@ public class ProductController {
   public ResponseEntity<ProductResponse> createProduct(
       @Valid @RequestBody CreateProductRequest request) {
     ProductResponse created = productService.createProduct(request);
-    return ResponseEntity.created(URI.create("/api/products/" + created.id())).body(created);
+    return ResponseEntity.created(URI.create("/api/v1/products/" + created.id())).body(created);
   }
 
   @GetMapping
