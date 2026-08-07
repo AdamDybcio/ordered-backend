@@ -2,9 +2,16 @@ package pl.dybcio.ordered.user.service;
 
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pl.dybcio.ordered.security.JwtService;
+import pl.dybcio.ordered.security.UserDetailsImpl;
+import pl.dybcio.ordered.security.UserDetailsServiceImpl;
+import pl.dybcio.ordered.user.dto.LoginRequest;
+import pl.dybcio.ordered.user.dto.LoginResponse;
 import pl.dybcio.ordered.user.dto.RegisterRequest;
 import pl.dybcio.ordered.user.dto.UserResponse;
 import pl.dybcio.ordered.user.entity.Role;
@@ -17,6 +24,10 @@ public class UserService {
 
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
+
+  private final AuthenticationManager authenticationManager;
+  private final JwtService jwtService;
+  private final UserDetailsServiceImpl userDetailsService;
 
   @Transactional
   public UserResponse register(RegisterRequest request) {
@@ -37,5 +48,16 @@ public class UserService {
 
     return new UserResponse(
         saved.getId(), saved.getEmail(), saved.getFirstName(), saved.getLastName());
+  }
+
+  public LoginResponse login(LoginRequest request) {
+    authenticationManager.authenticate(
+        new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+
+    UserDetailsImpl userDetails =
+        (UserDetailsImpl) userDetailsService.loadUserByUsername(request.email());
+    String token = jwtService.generateToken(userDetails);
+
+    return new LoginResponse(token);
   }
 }

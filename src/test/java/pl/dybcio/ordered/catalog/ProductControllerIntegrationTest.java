@@ -33,7 +33,7 @@ class ProductControllerIntegrationTest {
         new CreateProductRequest("Testowy produkt", "Opis testowy", new BigDecimal("99.99"), 10);
 
     ResponseEntity<ProductResponse> createResponse =
-        restTemplate.postForEntity("/api/products", request, ProductResponse.class);
+        restTemplate.postForEntity("/api/v1/products", request, ProductResponse.class);
 
     assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
@@ -45,7 +45,7 @@ class ProductControllerIntegrationTest {
     Long createdId = createdProduct.id();
 
     ResponseEntity<ProductResponse> getResponse =
-        restTemplate.getForEntity("/api/products/" + createdId, ProductResponse.class);
+        restTemplate.getForEntity("/api/v1/products/" + createdId, ProductResponse.class);
 
     assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(getResponse.getBody().price()).isEqualByComparingTo(new BigDecimal("99.99"));
