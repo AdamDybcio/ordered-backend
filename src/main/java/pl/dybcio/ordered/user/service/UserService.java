@@ -7,9 +7,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pl.dybcio.ordered.user.dto.RegisterRequest;
 import pl.dybcio.ordered.user.dto.UserResponse;
+import pl.dybcio.ordered.user.entity.Role;
 import pl.dybcio.ordered.user.entity.User;
 import pl.dybcio.ordered.user.repository.UserRepository;
-import pl.dybcio.ordered.user.entity.Role;
 
 @Service
 @RequiredArgsConstructor
