@@ -1,6 +1,7 @@
 package pl.dybcio.ordered.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.util.Date;
@@ -40,8 +41,12 @@ public class JwtService {
   }
 
   public boolean isTokenValid(String token, UserDetails userDetails) {
-    String username = extractUsername(token);
-    return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+    try {
+      String username = extractUsername(token);
+      return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+    } catch (JwtException | IllegalArgumentException e) {
+      return false;
+    }
   }
 
   private boolean isTokenExpired(String token) {
