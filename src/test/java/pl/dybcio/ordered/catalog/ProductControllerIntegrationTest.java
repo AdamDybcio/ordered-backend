@@ -124,4 +124,59 @@ class ProductControllerIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
   }
+
+  @Test
+  void shouldReturnOnlySellersOwnProducts_whenCallingMine() {
+    User seller1 =
+        User.builder()
+            .email("seller1@example.com")
+            .password(passwordEncoder.encode("irrelevant"))
+            .firstName("Jan")
+            .lastName("Pierwszy")
+            .roles(Set.of(Role.USER, Role.SELLER))
+            .build();
+    userRepository.save(seller1);
+
+    User seller2 =
+        User.builder()
+            .email("seller2@example.com")
+            .password(passwordEncoder.encode("irrelevant"))
+            .firstName("Anna")
+            .lastName("Druga")
+            .roles(Set.of(Role.USER, Role.SELLER))
+            .build();
+    userRepository.save(seller2);
+
+    HttpHeaders seller1Headers = new HttpHeaders();
+    seller1Headers.setBearerAuth(jwtService.generateToken(toUserDetails(seller1)));
+
+    HttpHeaders seller2Headers = new HttpHeaders();
+    seller2Headers.setBearerAuth(jwtService.generateToken(toUserDetails(seller2)));
+
+    restTemplate.postForEntity(
+        "/api/v1/products",
+        new HttpEntity<>(
+            new CreateProductRequest("Produkt Sellera 1", "Opis", new BigDecimal("50.00"), 5),
+            seller1Headers),
+        ProductResponse.class);
+
+    restTemplate.postForEntity(
+        "/api/v1/products",
+        new HttpEntity<>(
+            new CreateProductRequest("Produkt Sellera 2", "Opis", new BigDecimal("60.00"), 3),
+            seller2Headers),
+        ProductResponse.class);
+
+    ResponseEntity<ProductResponse[]> response =
+        restTemplate.exchange(
+            "/api/v1/products/mine",
+            org.springframework.http.HttpMethod.GET,
+            new HttpEntity<>(seller1Headers),
+            ProductResponse[].class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).hasSize(1);
+    assertThat(response.getBody()[0].name()).isEqualTo("Produkt Sellera 1");
+    assertThat(response.getBody()[0].sellerId()).isEqualTo(seller1.getId());
+  }
 }
