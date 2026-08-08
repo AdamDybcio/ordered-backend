@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import pl.dybcio.ordered.catalog.dto.CreateProductRequest;
 import pl.dybcio.ordered.catalog.dto.ProductResponse;
@@ -19,6 +20,7 @@ public class ProductController {
     this.productService = productService;
   }
 
+  @PreAuthorize("hasRole('SELLER')")
   @PostMapping
   public ResponseEntity<ProductResponse> createProduct(
       @Valid @RequestBody CreateProductRequest request) {
