@@ -124,7 +124,7 @@ class AuthControllerIntegrationTest {
     HttpEntity<Void> entity = new HttpEntity<>(headers);
 
     ResponseEntity<String> response =
-        restTemplate.exchange("/api/v1/orders", HttpMethod.GET, entity, String.class);
+        restTemplate.exchange("/api/v1/nonexistent-path", HttpMethod.GET, entity, String.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
