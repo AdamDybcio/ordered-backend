@@ -8,6 +8,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import pl.dybcio.ordered.catalog.service.ProductNotFoundException;
+import pl.dybcio.ordered.order.service.InsufficientStockException;
+import pl.dybcio.ordered.order.service.OrderNotFoundException;
 import pl.dybcio.ordered.user.service.EmailAlreadyTakenException;
 
 @RestControllerAdvice
@@ -35,5 +37,19 @@ public class GlobalExceptionHandler {
             .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
             .collect(Collectors.joining("; "));
     return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, message);
+  }
+
+  @ExceptionHandler(InsufficientStockException.class)
+  public ProblemDetail handleInsufficientStock(InsufficientStockException ex) {
+    ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    problem.setTitle("Insufficient stock");
+    return problem;
+  }
+
+  @ExceptionHandler(OrderNotFoundException.class)
+  public ProblemDetail handleOrderNotFound(OrderNotFoundException ex) {
+    ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+    problem.setTitle("Order not found");
+    return problem;
   }
 }
