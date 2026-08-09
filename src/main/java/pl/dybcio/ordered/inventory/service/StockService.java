@@ -23,4 +23,15 @@ public class StockService {
   public Integer getQuantity(Long productId) {
     return stockRepository.findById(productId).map(Stock::getQuantity).orElse(0);
   }
+
+  @Transactional
+  public void setQuantity(Long productId, Integer quantity) {
+    Stock stock =
+        stockRepository
+            .findById(productId)
+            .orElseThrow(
+                () -> new IllegalStateException("Missing stock record for product " + productId));
+    stock.setQuantity(quantity);
+    stockRepository.save(stock);
+  }
 }
