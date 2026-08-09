@@ -2,10 +2,7 @@ package pl.dybcio.ordered.order.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -116,5 +113,53 @@ public class OrderService {
   @Transactional(readOnly = true)
   public Page<Order> listOrdersForUser(Long buyerId, Pageable pageable) {
     return orderRepository.findByBuyerId(buyerId, pageable);
+  }
+
+  private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS =
+      Map.of(
+          OrderStatus.PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED),
+          OrderStatus.CONFIRMED, Set.of(OrderStatus.SHIPPED, OrderStatus.CANCELLED),
+          OrderStatus.SHIPPED, Set.of(OrderStatus.DELIVERED),
+          OrderStatus.DELIVERED, Set.of(),
+          OrderStatus.CANCELLED, Set.of());
+
+  @Transactional
+  public Order updateStatus(
+      Long orderId, Long actingUserId, boolean isAdmin, OrderStatus newStatus) {
+    Order order =
+        orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
+
+    authorizeStatusChange(order, actingUserId, isAdmin, newStatus);
+
+    Set<OrderStatus> allowed = ALLOWED_TRANSITIONS.getOrDefault(order.getStatus(), Set.of());
+    if (!allowed.contains(newStatus)) {
+      throw new InvalidOrderStatusTransitionException(order.getStatus(), newStatus);
+    }
+
+    order.setStatus(newStatus);
+    return orderRepository.save(order);
+  }
+
+  private void authorizeStatusChange(
+      Order order, Long actingUserId, boolean isAdmin, OrderStatus newStatus) {
+    if (isAdmin) {
+      return;
+    }
+
+    boolean isBuyer = order.getBuyer().getId().equals(actingUserId);
+    if (isBuyer && newStatus == OrderStatus.CANCELLED) {
+      return;
+    }
+
+    boolean isSellerInOrder =
+        order.getItems().stream()
+            .anyMatch(item -> item.getProduct().getSeller().getId().equals(actingUserId));
+    if (isSellerInOrder && newStatus == OrderStatus.SHIPPED) {
+      return;
+    }
+
+    throw new OrderStatusChangeNotAllowedException(
+        "User %d is not allowed to change order %d to %s"
+            .formatted(actingUserId, order.getId(), newStatus));
   }
 }

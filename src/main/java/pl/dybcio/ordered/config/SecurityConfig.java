@@ -25,12 +25,19 @@ public class SecurityConfig {
   private final ObjectMapper objectMapper;
 
   private static final String[] PUBLIC_ENDPOINTS = {
-    "/api/v1/auth/**", "/api/v1/products/**", "/actuator/health", "/error"
+    "/api/v1/auth/**",
+    "/api/v1/products/**",
+    "/actuator/health",
+    "/error",
+    "/v3/api-docs/**",
+    "/swagger-ui/**",
+    "/swagger-ui.html"
   };
 
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
+        .cors(cors -> {})
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(

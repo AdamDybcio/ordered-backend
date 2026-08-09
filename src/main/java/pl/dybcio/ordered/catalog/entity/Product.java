@@ -33,4 +33,7 @@ public class Product {
 
   @Column(name = "updated_at", nullable = false)
   private LocalDateTime updatedAt = LocalDateTime.now();
+
+  @Column(nullable = false)
+  private boolean active = true;
 }

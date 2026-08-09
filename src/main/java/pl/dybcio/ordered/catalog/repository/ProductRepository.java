@@ -6,4 +6,6 @@ import pl.dybcio.ordered.catalog.entity.Product;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
   List<Product> findBySeller_Email(String email);
+
+  List<Product> findByActiveTrue();
 }
