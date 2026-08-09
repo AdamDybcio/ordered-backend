@@ -23,8 +23,8 @@ public class OpenApiConfig {
                 .title("Ordered API")
                 .version("v1")
                 .description(
-                        "Backend for a distributed e-commerce system (modeled after Allegro) - "
-                                + "product catalog, orders, warehouse, pricing, and JWT authorization.")
+                    "Backend for a distributed e-commerce system (modeled after Allegro) - "
+                        + "product catalog, orders, warehouse, pricing, and JWT authorization.")
                 .contact(
                     new Contact()
                         .name("Adam Dybcio")

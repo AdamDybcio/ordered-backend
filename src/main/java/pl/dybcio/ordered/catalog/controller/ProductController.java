@@ -26,9 +26,7 @@ import pl.dybcio.ordered.catalog.service.ProductService;
 
 @RestController
 @RequestMapping("/api/v1/products")
-@Tag(
-    name = "Products",
-    description = "Product Catalog - View and manage your seller's offerings")
+@Tag(name = "Products", description = "Product Catalog - View and manage your seller's offerings")
 public class ProductController {
 
   private final ProductService productService;
