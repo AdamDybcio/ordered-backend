@@ -60,4 +60,13 @@ public class UserService {
 
     return new LoginResponse(token);
   }
+
+  @Transactional(readOnly = true)
+  public UserResponse getByEmail(String email) {
+    User user =
+        userRepository
+            .findByEmail(email)
+            .orElseThrow(() -> new IllegalStateException("Authenticated user not found: " + email));
+    return new UserResponse(user.getId(), user.getEmail(), user.getFirstName(), user.getLastName());
+  }
 }

@@ -16,6 +16,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import pl.dybcio.ordered.catalog.dto.CreateProductRequest;
 import pl.dybcio.ordered.catalog.dto.ProductResponse;
 import pl.dybcio.ordered.catalog.dto.UpdateProductRequest;
@@ -90,15 +94,18 @@ class ProductServiceTest {
 
   @Test
   void getAllProducts_returnsOnlyActiveProducts() {
-    when(productRepository.findByActiveTrue()).thenReturn(List.of(product));
+    Pageable pageable = PageRequest.of(0, 20);
+    Page<Product> productPage = new PageImpl<>(List.of(product), pageable, 1);
+
+    when(productRepository.findByActiveTrue(pageable)).thenReturn(productPage);
     when(pricingService.getCurrentPrice(10L)).thenReturn(new BigDecimal("19.99"));
     when(stockService.getQuantity(10L)).thenReturn(5);
 
-    List<ProductResponse> result = productService.getAllProducts();
+    Page<ProductResponse> result = productService.getAllProducts(pageable);
 
-    assertThat(result).hasSize(1);
-    assertThat(result.get(0).id()).isEqualTo(10L);
-    verify(productRepository).findByActiveTrue();
+    assertThat(result.getContent()).hasSize(1);
+    assertThat(result.getContent().get(0).id()).isEqualTo(10L);
+    verify(productRepository).findByActiveTrue(pageable);
   }
 
   @Test
