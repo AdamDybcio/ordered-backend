@@ -1,10 +1,12 @@
 package pl.dybcio.ordered.catalog.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pl.dybcio.ordered.catalog.dto.CreateProductRequest;
 import pl.dybcio.ordered.catalog.dto.ProductResponse;
+import pl.dybcio.ordered.catalog.dto.UpdateProductRequest;
 import pl.dybcio.ordered.catalog.entity.Product;
 import pl.dybcio.ordered.catalog.repository.ProductRepository;
 import pl.dybcio.ordered.inventory.service.StockService;
@@ -54,7 +56,7 @@ public class ProductService {
 
   @Transactional(readOnly = true)
   public List<ProductResponse> getAllProducts() {
-    return productRepository.findAll().stream().map(this::toResponse).toList();
+    return productRepository.findByActiveTrue().stream().map(this::toResponse).toList();
   }
 
   @Transactional(readOnly = true)
@@ -79,5 +81,46 @@ public class ProductService {
         pricingService.getCurrentPrice(product.getId()),
         stockService.getQuantity(product.getId()),
         product.getSeller().getId());
+  }
+
+  @Transactional
+  public ProductResponse updateProduct(
+      Long id, UpdateProductRequest request, String requesterEmail, boolean isAdmin) {
+    Product product =
+        productRepository.findById(id).orElseThrow(() -> new ProductNotFoundException(id));
+    assertOwnership(product, requesterEmail, isAdmin);
+
+    product.setName(request.name());
+    product.setDescription(request.description());
+    product.setUpdatedAt(LocalDateTime.now());
+    Product saved = productRepository.save(product);
+
+    if (request.price() != null) {
+      pricingService.setPrice(saved.getId(), request.price());
+    }
+    if (request.stockQuantity() != null) {
+      stockService.setQuantity(saved.getId(), request.stockQuantity());
+    }
+
+    return toResponse(saved);
+  }
+
+  @Transactional
+  public void deactivateProduct(Long id, String requesterEmail, boolean isAdmin) {
+    Product product =
+        productRepository.findById(id).orElseThrow(() -> new ProductNotFoundException(id));
+    assertOwnership(product, requesterEmail, isAdmin);
+    product.setActive(false);
+    productRepository.save(product);
+  }
+
+  private void assertOwnership(Product product, String requesterEmail, boolean isAdmin) {
+    if (isAdmin) {
+      return;
+    }
+    if (!product.getSeller().getEmail().equals(requesterEmail)) {
+      throw new ProductOwnershipException(
+          "User %s is not the owner of product %d".formatted(requesterEmail, product.getId()));
+    }
   }
 }
