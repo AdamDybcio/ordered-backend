@@ -8,8 +8,11 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import pl.dybcio.ordered.catalog.service.ProductNotFoundException;
+import pl.dybcio.ordered.catalog.service.ProductOwnershipException;
 import pl.dybcio.ordered.order.service.InsufficientStockException;
+import pl.dybcio.ordered.order.service.InvalidOrderStatusTransitionException;
 import pl.dybcio.ordered.order.service.OrderNotFoundException;
+import pl.dybcio.ordered.order.service.OrderStatusChangeNotAllowedException;
 import pl.dybcio.ordered.user.service.EmailAlreadyTakenException;
 
 @RestControllerAdvice
@@ -51,5 +54,26 @@ public class GlobalExceptionHandler {
     ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
     problem.setTitle("Order not found");
     return problem;
+  }
+
+  @ExceptionHandler(InvalidOrderStatusTransitionException.class)
+  public ProblemDetail handleInvalidTransition(InvalidOrderStatusTransitionException ex) {
+    ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    pd.setTitle("Invalid order status transition");
+    return pd;
+  }
+
+  @ExceptionHandler(OrderStatusChangeNotAllowedException.class)
+  public ProblemDetail handleStatusChangeNotAllowed(OrderStatusChangeNotAllowedException ex) {
+    ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+    pd.setTitle("Order status change not allowed");
+    return pd;
+  }
+
+  @ExceptionHandler(ProductOwnershipException.class)
+  public ProblemDetail handleProductOwnership(ProductOwnershipException ex) {
+    ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+    pd.setTitle("Product ownership violation");
+    return pd;
   }
 }
