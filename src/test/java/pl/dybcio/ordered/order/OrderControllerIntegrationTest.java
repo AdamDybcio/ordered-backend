@@ -26,6 +26,10 @@ import pl.dybcio.ordered.inventory.repository.StockRepository;
 import pl.dybcio.ordered.order.dto.OrderItemRequest;
 import pl.dybcio.ordered.order.dto.OrderRequest;
 import pl.dybcio.ordered.order.dto.OrderResponse;
+import pl.dybcio.ordered.order.dto.UpdateOrderStatusRequest;
+import pl.dybcio.ordered.order.entity.Order;
+import pl.dybcio.ordered.order.entity.OrderStatus;
+import pl.dybcio.ordered.order.repository.OrderRepository;
 import pl.dybcio.ordered.pricing.service.PricingService;
 import pl.dybcio.ordered.user.dto.LoginRequest;
 import pl.dybcio.ordered.user.dto.LoginResponse;
@@ -47,6 +51,7 @@ class OrderControllerIntegrationTest {
   @Autowired private ProductRepository productRepository;
   @Autowired private StockRepository stockRepository;
   @Autowired private PricingService pricingService;
+  @Autowired private OrderRepository orderRepository;
 
   private Long productId;
 
@@ -189,5 +194,133 @@ class OrderControllerIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).contains("\"totalElements\":1");
+  }
+
+  @Test
+  void updateStatus_buyerCancelsOwnPendingOrder_returns200() {
+    String token = registerAndLogin("buyer5-" + System.nanoTime() + "@test.pl");
+    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    OrderResponse placed =
+        restTemplate
+            .exchange(
+                "/api/v1/orders", HttpMethod.POST, authEntity(token, request), OrderResponse.class)
+            .getBody();
+
+    UpdateOrderStatusRequest statusRequest = new UpdateOrderStatusRequest(OrderStatus.CANCELLED);
+
+    ResponseEntity<OrderResponse> response =
+        restTemplate.exchange(
+            "/api/v1/orders/" + placed.id() + "/status",
+            HttpMethod.PATCH,
+            authEntity(token, statusRequest),
+            OrderResponse.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody().status()).isEqualTo(OrderStatus.CANCELLED);
+  }
+
+  @Test
+  void updateStatus_buyerTriesToConfirmOwnOrder_returns403() {
+    String token = registerAndLogin("buyer6-" + System.nanoTime() + "@test.pl");
+    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    OrderResponse placed =
+        restTemplate
+            .exchange(
+                "/api/v1/orders", HttpMethod.POST, authEntity(token, request), OrderResponse.class)
+            .getBody();
+
+    UpdateOrderStatusRequest statusRequest = new UpdateOrderStatusRequest(OrderStatus.CONFIRMED);
+
+    ResponseEntity<String> response =
+        restTemplate.exchange(
+            "/api/v1/orders/" + placed.id() + "/status",
+            HttpMethod.PATCH,
+            authEntity(token, statusRequest),
+            String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
+  void updateStatus_sellerShipsOrderContainingTheirProduct_returns200() {
+    String sellerEmail = "seller-ship-" + System.nanoTime() + "@test.pl";
+    String sellerToken = registerAndLogin(sellerEmail);
+    User sellerUser = userRepository.findByEmail(sellerEmail).orElseThrow();
+
+    Product sellersProduct = new Product();
+    sellersProduct.setName("Produkt sellera");
+    sellersProduct.setSeller(sellerUser);
+    sellersProduct = productRepository.save(sellersProduct);
+    stockRepository.save(new Stock(sellersProduct.getId(), 5));
+    pricingService.setPrice(sellersProduct.getId(), new BigDecimal("9.99"));
+
+    String buyerToken = registerAndLogin("buyer7-" + System.nanoTime() + "@test.pl");
+    OrderRequest request =
+        new OrderRequest(List.of(new OrderItemRequest(sellersProduct.getId(), 1)));
+    OrderResponse placed =
+        restTemplate
+            .exchange(
+                "/api/v1/orders",
+                HttpMethod.POST,
+                authEntity(buyerToken, request),
+                OrderResponse.class)
+            .getBody();
+
+    Order order = orderRepository.findById(placed.id()).orElseThrow();
+    order.setStatus(OrderStatus.CONFIRMED);
+    orderRepository.save(order);
+
+    UpdateOrderStatusRequest statusRequest = new UpdateOrderStatusRequest(OrderStatus.SHIPPED);
+
+    ResponseEntity<OrderResponse> response =
+        restTemplate.exchange(
+            "/api/v1/orders/" + placed.id() + "/status",
+            HttpMethod.PATCH,
+            authEntity(sellerToken, statusRequest),
+            OrderResponse.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody().status()).isEqualTo(OrderStatus.SHIPPED);
+  }
+
+  @Test
+  void updateStatus_invalidTransition_returns409() {
+    String token = registerAndLogin("buyer8-" + System.nanoTime() + "@test.pl");
+    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    OrderResponse placed =
+        restTemplate
+            .exchange(
+                "/api/v1/orders", HttpMethod.POST, authEntity(token, request), OrderResponse.class)
+            .getBody();
+
+    Order order = orderRepository.findById(placed.id()).orElseThrow();
+    order.setStatus(OrderStatus.DELIVERED);
+    orderRepository.save(order);
+
+    UpdateOrderStatusRequest statusRequest = new UpdateOrderStatusRequest(OrderStatus.CANCELLED);
+
+    ResponseEntity<String> response =
+        restTemplate.exchange(
+            "/api/v1/orders/" + placed.id() + "/status",
+            HttpMethod.PATCH,
+            authEntity(token, statusRequest),
+            String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+  }
+
+  @Test
+  void updateStatus_nonExistentOrder_returns404() {
+    String token = registerAndLogin("buyer9-" + System.nanoTime() + "@test.pl");
+    UpdateOrderStatusRequest statusRequest = new UpdateOrderStatusRequest(OrderStatus.CANCELLED);
+
+    ResponseEntity<String> response =
+        restTemplate.exchange(
+            "/api/v1/orders/999999/status",
+            HttpMethod.PATCH,
+            authEntity(token, statusRequest),
+            String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 }

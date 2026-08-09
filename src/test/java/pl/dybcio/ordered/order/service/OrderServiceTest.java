@@ -25,6 +25,8 @@ import pl.dybcio.ordered.inventory.entity.Stock;
 import pl.dybcio.ordered.inventory.repository.StockRepository;
 import pl.dybcio.ordered.order.dto.OrderItemRequest;
 import pl.dybcio.ordered.order.entity.Order;
+import pl.dybcio.ordered.order.entity.OrderItem;
+import pl.dybcio.ordered.order.entity.OrderStatus;
 import pl.dybcio.ordered.order.repository.OrderRepository;
 import pl.dybcio.ordered.pricing.service.PricingService;
 import pl.dybcio.ordered.user.entity.User;
@@ -169,6 +171,109 @@ class OrderServiceTest {
     when(orderRepository.findById(100L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> orderService.getOrderForUser(100L, 1L, false))
+        .isInstanceOf(OrderNotFoundException.class);
+  }
+
+  @Test
+  void updateStatus_adminCanConfirmPendingOrder() {
+    Order order = Order.builder().id(100L).buyer(buyer).status(OrderStatus.PENDING).build();
+    when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+    when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    Order result = orderService.updateStatus(100L, 999L, true, OrderStatus.CONFIRMED);
+
+    assertThat(result.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    verify(orderRepository).save(order);
+  }
+
+  @Test
+  void updateStatus_buyerCanCancelOwnPendingOrder() {
+    Order order = Order.builder().id(100L).buyer(buyer).status(OrderStatus.PENDING).build();
+    when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+    when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    Order result = orderService.updateStatus(100L, 1L, false, OrderStatus.CANCELLED);
+
+    assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+  }
+
+  @Test
+  void updateStatus_buyerCannotConfirmOwnOrder_throwsNotAllowed() {
+    Order order = Order.builder().id(100L).buyer(buyer).status(OrderStatus.PENDING).build();
+    when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.updateStatus(100L, 1L, false, OrderStatus.CONFIRMED))
+        .isInstanceOf(OrderStatusChangeNotAllowedException.class);
+
+    verify(orderRepository, never()).save(any(Order.class));
+  }
+
+  @Test
+  void updateStatus_sellerCanShipOrderContainingTheirProduct() {
+    User seller = new User();
+    seller.setId(55L);
+    product.setSeller(seller);
+
+    OrderItem item =
+        OrderItem.builder()
+            .product(product)
+            .quantity(1)
+            .unitPrice(new BigDecimal("10.00"))
+            .subtotal(new BigDecimal("10.00"))
+            .build();
+
+    Order order = Order.builder().id(100L).buyer(buyer).status(OrderStatus.CONFIRMED).build();
+    order.addItem(item);
+
+    when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+    when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+    Order result = orderService.updateStatus(100L, 55L, false, OrderStatus.SHIPPED);
+
+    assertThat(result.getStatus()).isEqualTo(OrderStatus.SHIPPED);
+  }
+
+  @Test
+  void updateStatus_sellerCannotShipOrderWithoutTheirProduct_throwsNotAllowed() {
+    User seller = new User();
+    seller.setId(55L);
+    product.setSeller(seller);
+
+    OrderItem item =
+        OrderItem.builder()
+            .product(product)
+            .quantity(1)
+            .unitPrice(new BigDecimal("10.00"))
+            .subtotal(new BigDecimal("10.00"))
+            .build();
+
+    Order order = Order.builder().id(100L).buyer(buyer).status(OrderStatus.CONFIRMED).build();
+    order.addItem(item);
+
+    when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.updateStatus(100L, 999L, false, OrderStatus.SHIPPED))
+        .isInstanceOf(OrderStatusChangeNotAllowedException.class);
+
+    verify(orderRepository, never()).save(any(Order.class));
+  }
+
+  @Test
+  void updateStatus_invalidTransition_throwsInvalidOrderStatusTransitionException() {
+    Order order = Order.builder().id(100L).buyer(buyer).status(OrderStatus.DELIVERED).build();
+    when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.updateStatus(100L, 1L, false, OrderStatus.CANCELLED))
+        .isInstanceOf(InvalidOrderStatusTransitionException.class);
+
+    verify(orderRepository, never()).save(any(Order.class));
+  }
+
+  @Test
+  void updateStatus_orderNotFound_throwsOrderNotFoundException() {
+    when(orderRepository.findById(100L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> orderService.updateStatus(100L, 1L, true, OrderStatus.CONFIRMED))
         .isInstanceOf(OrderNotFoundException.class);
   }
 }
