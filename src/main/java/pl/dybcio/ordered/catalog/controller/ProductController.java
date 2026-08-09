@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -77,8 +79,8 @@ public class ProductController {
       content = @Content(schema = @Schema(implementation = ProductResponse.class)))
   @SecurityRequirements
   @GetMapping
-  public List<ProductResponse> getAllProducts() {
-    return productService.getAllProducts();
+  public Page<ProductResponse> getAllProducts(Pageable pageable) {
+    return productService.getAllProducts(pageable);
   }
 
   @Operation(summary = "Get product by ID (public)")

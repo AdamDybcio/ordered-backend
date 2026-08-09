@@ -2,6 +2,8 @@ package pl.dybcio.ordered.catalog.service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pl.dybcio.ordered.catalog.dto.CreateProductRequest;
@@ -55,8 +57,8 @@ public class ProductService {
   }
 
   @Transactional(readOnly = true)
-  public List<ProductResponse> getAllProducts() {
-    return productRepository.findByActiveTrue().stream().map(this::toResponse).toList();
+  public Page<ProductResponse> getAllProducts(Pageable pageable) {
+    return productRepository.findByActiveTrue(pageable).map(this::toResponse);
   }
 
   @Transactional(readOnly = true)
