@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -80,7 +81,8 @@ public class OrderController {
       responseCode = "200",
       content = @Content(schema = @Schema(implementation = OrderResponse.class)))
   @GetMapping
-  public Page<OrderResponse> listMyOrders(Authentication authentication, Pageable pageable) {
+  public Page<OrderResponse> listMyOrders(
+      Authentication authentication, @ParameterObject Pageable pageable) {
     Long userId = currentUserId(authentication);
     return orderService.listOrdersForUser(userId, pageable).map(OrderResponse::from);
   }

@@ -28,9 +28,11 @@ import pl.dybcio.ordered.order.entity.Order;
 import pl.dybcio.ordered.order.entity.OrderItem;
 import pl.dybcio.ordered.order.entity.OrderStatus;
 import pl.dybcio.ordered.order.repository.OrderRepository;
+import pl.dybcio.ordered.outbox.repository.OutboxEventRepository;
 import pl.dybcio.ordered.pricing.service.PricingService;
 import pl.dybcio.ordered.user.entity.User;
 import pl.dybcio.ordered.user.repository.UserRepository;
+import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -40,6 +42,8 @@ class OrderServiceTest {
   @Mock private StockRepository stockRepository;
   @Mock private PricingService pricingService;
   @Mock private UserRepository userRepository;
+  @Mock private OutboxEventRepository outboxEventRepository;
+  @Mock private ObjectMapper objectMapper;
 
   @InjectMocks private OrderService orderService;
 
@@ -64,7 +68,14 @@ class OrderServiceTest {
     when(productRepository.findById(10L)).thenReturn(Optional.of(product));
     when(stockRepository.findByProductIdForUpdate(10L)).thenReturn(Optional.of(stock));
     when(pricingService.getCurrentPrice(10L)).thenReturn(new BigDecimal("19.99"));
-    when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(orderRepository.save(any(Order.class)))
+        .thenAnswer(
+            inv -> {
+              Order o = inv.getArgument(0);
+              o.setId(100L);
+              return o;
+            });
+    when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
     Order result = orderService.placeOrder(1L, List.of(new OrderItemRequest(10L, 2)));
 
@@ -99,7 +110,14 @@ class OrderServiceTest {
     when(productRepository.findById(10L)).thenReturn(Optional.of(product));
     when(stockRepository.findByProductIdForUpdate(10L)).thenReturn(Optional.of(stock));
     when(pricingService.getCurrentPrice(10L)).thenReturn(new BigDecimal("10.00"));
-    when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(orderRepository.save(any(Order.class)))
+        .thenAnswer(
+            inv -> {
+              Order o = inv.getArgument(0);
+              o.setId(100L);
+              return o;
+            });
+    when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
     List<OrderItemRequest> items =
         List.of(new OrderItemRequest(10L, 2), new OrderItemRequest(10L, 3));
