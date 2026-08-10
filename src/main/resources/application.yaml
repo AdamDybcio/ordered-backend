@@ -12,6 +12,16 @@ spring:
       hibernate:
         format_sql: true
     show-sql: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: ordered-backend
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
 
 management:
   endpoints:
@@ -31,3 +41,5 @@ app:
     expiration-ms: ${JWT_EXPIRATION_MS:3600000}
   cors:
     allowed-origins: http://localhost:3000,http://localhost:9090
+  outbox:
+    poll-interval-ms: 5000

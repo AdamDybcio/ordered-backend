@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ProblemDetail;
@@ -79,7 +80,7 @@ public class ProductController {
       content = @Content(schema = @Schema(implementation = ProductResponse.class)))
   @SecurityRequirements
   @GetMapping
-  public Page<ProductResponse> getAllProducts(Pageable pageable) {
+  public Page<ProductResponse> getAllProducts(@ParameterObject Pageable pageable) {
     return productService.getAllProducts(pageable);
   }
 

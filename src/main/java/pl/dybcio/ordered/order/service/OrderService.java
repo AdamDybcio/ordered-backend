@@ -18,7 +18,10 @@ import pl.dybcio.ordered.order.dto.OrderItemRequest;
 import pl.dybcio.ordered.order.entity.Order;
 import pl.dybcio.ordered.order.entity.OrderItem;
 import pl.dybcio.ordered.order.entity.OrderStatus;
+import pl.dybcio.ordered.order.event.OrderPlacedPayload;
 import pl.dybcio.ordered.order.repository.OrderRepository;
+import pl.dybcio.ordered.outbox.entity.OutboxEvent;
+import pl.dybcio.ordered.outbox.repository.OutboxEventRepository;
 import pl.dybcio.ordered.pricing.service.PricingService;
 import pl.dybcio.ordered.user.entity.User;
 import pl.dybcio.ordered.user.repository.UserRepository;
@@ -32,6 +35,8 @@ public class OrderService {
   private final StockRepository stockRepository;
   private final PricingService pricingService;
   private final UserRepository userRepository;
+  private final OutboxEventRepository outboxEventRepository;
+  private final tools.jackson.databind.ObjectMapper objectMapper;
 
   @Transactional
   public Order placeOrder(Long buyerId, List<OrderItemRequest> requestedItems) {
@@ -95,7 +100,18 @@ public class OrderService {
     }
 
     order.setTotalAmount(total);
-    return orderRepository.save(order);
+    Order savedOrder = orderRepository.save(order);
+
+    OrderPlacedPayload payload = OrderPlacedPayload.from(savedOrder);
+    outboxEventRepository.save(
+        OutboxEvent.builder()
+            .aggregateType("Order")
+            .aggregateId(savedOrder.getId().toString())
+            .eventType("OrderPlaced")
+            .payload(objectMapper.writeValueAsString(payload))
+            .build());
+
+    return savedOrder;
   }
 
   @Transactional(readOnly = true)

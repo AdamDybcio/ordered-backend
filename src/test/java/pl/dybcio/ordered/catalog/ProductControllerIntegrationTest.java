@@ -43,8 +43,6 @@ class ProductControllerIntegrationTest {
   @Autowired private UserRepository userRepository;
   @Autowired private ProductRepository productRepository;
 
-  // Rejestracja daje tylko ROLE_USER — na potrzeby testu ręcznie dokładamy SELLER,
-  // bo w apce na razie nie ma innego mechanizmu nadawania tej roli.
   private String registerSellerAndLogin(String email) {
     RegisterRequest registerRequest = new RegisterRequest(email, "haslo1234", "Jan", "Sprzedawca");
     restTemplate.postForEntity("/api/v1/auth/register", registerRequest, UserResponse.class);

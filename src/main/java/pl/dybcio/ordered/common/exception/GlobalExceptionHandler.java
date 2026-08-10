@@ -1,6 +1,7 @@
 package pl.dybcio.ordered.common.exception;
 
 import java.util.stream.Collectors;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -75,5 +76,11 @@ public class GlobalExceptionHandler {
     ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
     pd.setTitle("Product ownership violation");
     return pd;
+  }
+
+  @ExceptionHandler(PropertyReferenceException.class)
+  public ProblemDetail handlePropertyReference(PropertyReferenceException ex) {
+    return ProblemDetail.forStatusAndDetail(
+        HttpStatus.BAD_REQUEST, "Invalid sort parameter: " + ex.getMessage());
   }
 }

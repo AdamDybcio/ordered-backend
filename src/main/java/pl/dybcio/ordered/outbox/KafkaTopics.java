@@ -1,0 +1,7 @@
+package pl.dybcio.ordered.outbox;
+
+public final class KafkaTopics {
+  public static final String ORDER_PLACED = "order-placed";
+
+  private KafkaTopics() {}
+}
