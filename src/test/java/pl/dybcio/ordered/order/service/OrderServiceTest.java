@@ -22,7 +22,7 @@ import pl.dybcio.ordered.catalog.entity.Product;
 import pl.dybcio.ordered.catalog.repository.ProductRepository;
 import pl.dybcio.ordered.catalog.service.ProductNotFoundException;
 import pl.dybcio.ordered.inventory.entity.Stock;
-import pl.dybcio.ordered.inventory.repository.StockRepository;
+import pl.dybcio.ordered.inventory.service.StockService;
 import pl.dybcio.ordered.order.dto.OrderItemRequest;
 import pl.dybcio.ordered.order.entity.Order;
 import pl.dybcio.ordered.order.entity.OrderItem;
@@ -39,11 +39,11 @@ class OrderServiceTest {
 
   @Mock private OrderRepository orderRepository;
   @Mock private ProductRepository productRepository;
-  @Mock private StockRepository stockRepository;
   @Mock private PricingService pricingService;
   @Mock private UserRepository userRepository;
   @Mock private OutboxEventRepository outboxEventRepository;
   @Mock private ObjectMapper objectMapper;
+  @Mock private StockService stockService;
 
   @InjectMocks private OrderService orderService;
 
@@ -66,7 +66,13 @@ class OrderServiceTest {
 
     when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
     when(productRepository.findById(10L)).thenReturn(Optional.of(product));
-    when(stockRepository.findByProductIdForUpdate(10L)).thenReturn(Optional.of(stock));
+    when(stockService.getQuantity(10L)).thenReturn(5);
+    when(stockService.decrementForOrder(10L, 2))
+        .thenAnswer(
+            inv -> {
+              stock.setQuantity(3);
+              return stock;
+            });
     when(pricingService.getCurrentPrice(10L)).thenReturn(new BigDecimal("19.99"));
     when(orderRepository.save(any(Order.class)))
         .thenAnswer(
@@ -82,7 +88,7 @@ class OrderServiceTest {
     assertThat(result.getItems()).hasSize(1);
     assertThat(result.getTotalAmount()).isEqualByComparingTo("39.98");
     assertThat(stock.getQuantity()).isEqualTo(3);
-    verify(stockRepository).save(stock);
+    verify(stockService).decrementForOrder(10L, 2);
     verify(orderRepository).save(any(Order.class));
   }
 
@@ -92,13 +98,13 @@ class OrderServiceTest {
 
     when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
     when(productRepository.findById(10L)).thenReturn(Optional.of(product));
-    when(stockRepository.findByProductIdForUpdate(10L)).thenReturn(Optional.of(stock));
+    when(stockService.getQuantity(10L)).thenReturn(1);
+    when(stockService.decrementForOrder(10L, 5)).thenReturn(stock); // ilość bez zmian = za mało
 
     assertThatThrownBy(() -> orderService.placeOrder(1L, List.of(new OrderItemRequest(10L, 5))))
         .isInstanceOf(InsufficientStockException.class)
         .hasMessageContaining("10");
 
-    verify(stockRepository, never()).save(any(Stock.class));
     verify(orderRepository, never()).save(any(Order.class));
   }
 
@@ -108,7 +114,13 @@ class OrderServiceTest {
 
     when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
     when(productRepository.findById(10L)).thenReturn(Optional.of(product));
-    when(stockRepository.findByProductIdForUpdate(10L)).thenReturn(Optional.of(stock));
+    when(stockService.getQuantity(10L)).thenReturn(10);
+    when(stockService.decrementForOrder(10L, 5))
+        .thenAnswer(
+            inv -> {
+              stock.setQuantity(5);
+              return stock;
+            });
     when(pricingService.getCurrentPrice(10L)).thenReturn(new BigDecimal("10.00"));
     when(orderRepository.save(any(Order.class)))
         .thenAnswer(
@@ -127,7 +139,7 @@ class OrderServiceTest {
     assertThat(result.getItems()).hasSize(1);
     assertThat(result.getItems().get(0).getQuantity()).isEqualTo(5);
     assertThat(stock.getQuantity()).isEqualTo(5);
-    verify(stockRepository, times(1)).findByProductIdForUpdate(10L);
+    verify(stockService, times(1)).decrementForOrder(10L, 5);
   }
 
   @Test

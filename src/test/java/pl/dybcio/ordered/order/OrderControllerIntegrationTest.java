@@ -2,6 +2,7 @@ package pl.dybcio.ordered.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.redis.testcontainers.RedisContainer;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,9 +17,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 import pl.dybcio.ordered.catalog.entity.Product;
 import pl.dybcio.ordered.catalog.repository.ProductRepository;
 import pl.dybcio.ordered.inventory.entity.Stock;
@@ -41,10 +44,15 @@ import pl.dybcio.ordered.user.repository.UserRepository;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class OrderControllerIntegrationTest {
 
   @Container @ServiceConnection
   static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+
+  @Container
+  @ServiceConnection(name = "redis")
+  static RedisContainer redis = new RedisContainer(DockerImageName.parse("redis:7.4-alpine"));
 
   @Autowired private TestRestTemplate restTemplate;
   @Autowired private UserRepository userRepository;

@@ -3,6 +3,7 @@ package pl.dybcio.ordered.outbox;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import com.redis.testcontainers.RedisContainer;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Set;
@@ -17,10 +18,12 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
+import org.testcontainers.utility.DockerImageName;
 import pl.dybcio.ordered.catalog.dto.CreateProductRequest;
 import pl.dybcio.ordered.catalog.dto.ProductResponse;
 import pl.dybcio.ordered.messaging.repository.ProcessedEventRepository;
@@ -39,6 +42,7 @@ import pl.dybcio.ordered.user.repository.UserRepository;
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class OrderPlacedOutboxIntegrationTest {
 
   @Container @ServiceConnection
@@ -46,6 +50,10 @@ class OrderPlacedOutboxIntegrationTest {
 
   @Container
   static ConfluentKafkaContainer kafka = new ConfluentKafkaContainer("confluentinc/cp-kafka:7.7.1");
+
+  @Container
+  @ServiceConnection(name = "redis")
+  static RedisContainer redis = new RedisContainer(DockerImageName.parse("redis:7.4-alpine"));
 
   @org.springframework.test.context.DynamicPropertySource
   static void kafkaProperties(org.springframework.test.context.DynamicPropertyRegistry registry) {

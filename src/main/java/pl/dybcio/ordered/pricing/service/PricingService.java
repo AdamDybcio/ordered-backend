@@ -1,8 +1,11 @@
 package pl.dybcio.ordered.pricing.service;
 
 import java.math.BigDecimal;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pl.dybcio.ordered.config.CacheNames;
 import pl.dybcio.ordered.pricing.entity.PriceHistory;
 import pl.dybcio.ordered.pricing.repository.PriceHistoryRepository;
 
@@ -16,11 +19,13 @@ public class PricingService {
   }
 
   @Transactional
+  @CacheEvict(value = CacheNames.PRODUCT_PRICE, key = "#productId")
   public void setPrice(Long productId, BigDecimal price) {
     priceHistoryRepository.save(new PriceHistory(productId, price));
   }
 
   @Transactional(readOnly = true)
+  @Cacheable(value = CacheNames.PRODUCT_PRICE, key = "#productId")
   public BigDecimal getCurrentPrice(Long productId) {
     return priceHistoryRepository
         .findFirstByProductIdOrderByEffectiveFromDesc(productId)
