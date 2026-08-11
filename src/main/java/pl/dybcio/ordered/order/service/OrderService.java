@@ -1,7 +1,6 @@
 package pl.dybcio.ordered.order.service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +12,7 @@ import pl.dybcio.ordered.catalog.entity.Product;
 import pl.dybcio.ordered.catalog.repository.ProductRepository;
 import pl.dybcio.ordered.catalog.service.ProductNotFoundException;
 import pl.dybcio.ordered.inventory.entity.Stock;
-import pl.dybcio.ordered.inventory.repository.StockRepository;
+import pl.dybcio.ordered.inventory.service.StockService;
 import pl.dybcio.ordered.order.dto.OrderItemRequest;
 import pl.dybcio.ordered.order.entity.Order;
 import pl.dybcio.ordered.order.entity.OrderItem;
@@ -32,11 +31,11 @@ public class OrderService {
 
   private final OrderRepository orderRepository;
   private final ProductRepository productRepository;
-  private final StockRepository stockRepository;
   private final PricingService pricingService;
   private final UserRepository userRepository;
   private final OutboxEventRepository outboxEventRepository;
   private final tools.jackson.databind.ObjectMapper objectMapper;
+  private final StockService stockService;
 
   @Transactional
   public Order placeOrder(Long buyerId, List<OrderItemRequest> requestedItems) {
@@ -72,19 +71,12 @@ public class OrderService {
               .findById(productId)
               .orElseThrow(() -> new ProductNotFoundException(productId));
 
-      Stock stock =
-          stockRepository
-              .findByProductIdForUpdate(productId)
-              .orElseThrow(
-                  () -> new IllegalStateException("Missing stock record for product " + productId));
+      int quantityBefore = stockService.getQuantity(productId);
+      Stock stock = stockService.decrementForOrder(productId, quantity);
 
-      if (stock.getQuantity() < quantity) {
-        throw new InsufficientStockException(productId, quantity, stock.getQuantity());
+      if (stock.getQuantity() == quantityBefore) {
+        throw new InsufficientStockException(productId, quantity, quantityBefore);
       }
-
-      stock.setQuantity(stock.getQuantity() - quantity);
-      stock.setUpdatedAt(LocalDateTime.now());
-      stockRepository.save(stock);
 
       BigDecimal unitPrice = pricingService.getCurrentPrice(productId);
       BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
