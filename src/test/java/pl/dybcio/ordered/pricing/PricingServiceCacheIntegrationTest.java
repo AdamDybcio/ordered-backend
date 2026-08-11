@@ -69,8 +69,10 @@ class PricingServiceCacheIntegrationTest {
 
     Cache cache = cacheManager.getCache(CacheNames.PRODUCT_PRICE);
     assertThat(cache).isNotNull();
-    Cache.ValueWrapper wrapper = cache.get(productId);
-    await().atMost(Duration.ofSeconds(2)).untilAsserted(() -> assertThat(wrapper).isNotNull());
+
+    await()
+        .atMost(Duration.ofSeconds(2))
+        .untilAsserted(() -> assertThat(cache.get(productId)).isNotNull());
   }
 
   @Test
