@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,6 +27,9 @@ import pl.dybcio.ordered.catalog.dto.CreateProductRequest;
 import pl.dybcio.ordered.catalog.dto.ProductResponse;
 import pl.dybcio.ordered.catalog.dto.UpdateProductRequest;
 import pl.dybcio.ordered.catalog.service.ProductService;
+import pl.dybcio.ordered.history.service.BrowsingHistoryService;
+import pl.dybcio.ordered.user.entity.User;
+import pl.dybcio.ordered.user.repository.UserRepository;
 
 @RestController
 @RequestMapping("/api/v1/products")
@@ -33,9 +37,16 @@ import pl.dybcio.ordered.catalog.service.ProductService;
 public class ProductController {
 
   private final ProductService productService;
+  private final BrowsingHistoryService browsingHistoryService;
+  private final UserRepository userRepository;
 
-  public ProductController(ProductService productService) {
+  public ProductController(
+      ProductService productService,
+      BrowsingHistoryService browsingHistoryService,
+      UserRepository userRepository) {
     this.productService = productService;
+    this.browsingHistoryService = browsingHistoryService;
+    this.userRepository = userRepository;
   }
 
   @Operation(summary = "Create a new product (SELLER only)")
@@ -96,8 +107,23 @@ public class ProductController {
   })
   @SecurityRequirements
   @GetMapping("/{id}")
-  public ProductResponse getProduct(@Parameter(description = "Product ID") @PathVariable Long id) {
-    return productService.getProduct(id);
+  public ProductResponse getProduct(
+      @Parameter(description = "Product ID") @PathVariable Long id, Authentication authentication) {
+    ProductResponse product = productService.getProduct(id);
+    recordViewIfAuthenticated(authentication, id);
+    return product;
+  }
+
+  private void recordViewIfAuthenticated(Authentication authentication, Long productId) {
+    if (authentication == null
+        || !authentication.isAuthenticated()
+        || authentication instanceof AnonymousAuthenticationToken) {
+      return;
+    }
+    User user = userRepository.findByEmail(authentication.getName()).orElse(null);
+    if (user != null) {
+      browsingHistoryService.recordView(user.getId(), productId);
+    }
   }
 
   @Operation(summary = "Update product (SELLER or ADMIN only)")

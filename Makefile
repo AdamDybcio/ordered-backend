@@ -2,8 +2,8 @@
 
 help: ## Show this help message
 	@echo Available commands:
-	@echo   up                 - Start local infrastructure (Postgres) in Docker
-	@echo   up-full            - Start full stack in Docker (Postgres + app), for pre-deploy sanity checks
+	@echo   up                 - Start local infrastructure in Docker
+	@echo   up-full            - Start full stack in Docker, for pre-deploy sanity checks
 	@echo   down               - Stop local infrastructure
 	@echo   restart            - Restart local infrastructure
 	@echo   logs               - Tail logs from local infrastructure
@@ -16,10 +16,10 @@ help: ## Show this help message
 	@echo   clean              - Remove build artifacts
 	@echo   run                - Run the application locally
 
-up: ## Start local infrastructure (Postgres) in Docker
+up: ## Start local infrastructure in Docker
 	docker compose up -d
 
-up-full: ## Start full stack in Docker (Postgres + app), for pre-deploy sanity checks
+up-full: ## Start full stack in Docker, for pre-deploy sanity checks
 	docker compose --profile full up -d --build
 
 down: ## Stop local infrastructure

@@ -14,6 +14,8 @@ import pl.dybcio.ordered.order.service.InsufficientStockException;
 import pl.dybcio.ordered.order.service.InvalidOrderStatusTransitionException;
 import pl.dybcio.ordered.order.service.OrderNotFoundException;
 import pl.dybcio.ordered.order.service.OrderStatusChangeNotAllowedException;
+import pl.dybcio.ordered.review.service.DuplicateReviewException;
+import pl.dybcio.ordered.review.service.ProductNotPurchasedException;
 import pl.dybcio.ordered.user.service.EmailAlreadyTakenException;
 
 @RestControllerAdvice
@@ -82,5 +84,19 @@ public class GlobalExceptionHandler {
   public ProblemDetail handlePropertyReference(PropertyReferenceException ex) {
     return ProblemDetail.forStatusAndDetail(
         HttpStatus.BAD_REQUEST, "Invalid sort parameter: " + ex.getMessage());
+  }
+
+  @ExceptionHandler(ProductNotPurchasedException.class)
+  public ProblemDetail handleProductNotPurchased(ProductNotPurchasedException ex) {
+    ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+    pd.setTitle("Product not purchased");
+    return pd;
+  }
+
+  @ExceptionHandler(DuplicateReviewException.class)
+  public ProblemDetail handleDuplicateReview(DuplicateReviewException ex) {
+    ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    pd.setTitle("Duplicate review");
+    return pd;
   }
 }
