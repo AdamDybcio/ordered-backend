@@ -39,7 +39,7 @@ public class LoadTestSeeder {
       User seller =
           User.builder()
               .email(SEEDER_EMAIL)
-              .password("not-used-for-login")
+              .password(java.util.UUID.randomUUID().toString())
               .firstName("Load")
               .lastName("Seller")
               .build();
