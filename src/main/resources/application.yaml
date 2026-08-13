@@ -5,6 +5,9 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/ordered}
     username: ${DB_USERNAME:ordered}
     password: ${DB_PASSWORD:ordered}
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
   jpa:
     hibernate:
       ddl-auto: validate
@@ -22,6 +25,10 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       auto-offset-reset: earliest
+    template:
+      observation-enabled: true
+    listener:
+      observation-enabled: true
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -39,6 +46,12 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5,0.95,0.99
 
 server:
   port: ${PORT:9090}

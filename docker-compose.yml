@@ -63,6 +63,42 @@ services:
       timeout: 5s
       retries: 5
 
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: ordered-prometheus
+    profiles: ["observability"]
+    ports:
+      - "9095:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: ordered-grafana
+    profiles: ["observability"]
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+
+  jaeger:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.20.0
+    container_name: ordered-jaeger
+    profiles: [ "observability" ]
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+
   app:
     build: .
     container_name: ordered-backend
@@ -89,3 +125,4 @@ services:
 volumes:
   postgres_data:
   mongo_data:
+  grafana_data:
