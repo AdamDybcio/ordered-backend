@@ -21,6 +21,7 @@ import pl.dybcio.ordered.order.event.OrderPlacedPayload;
 import pl.dybcio.ordered.order.repository.OrderRepository;
 import pl.dybcio.ordered.outbox.entity.OutboxEvent;
 import pl.dybcio.ordered.outbox.repository.OutboxEventRepository;
+import pl.dybcio.ordered.payment.dto.PaymentResult;
 import pl.dybcio.ordered.pricing.service.PricingService;
 import pl.dybcio.ordered.user.entity.User;
 import pl.dybcio.ordered.user.repository.UserRepository;
@@ -125,7 +126,9 @@ public class OrderService {
 
   private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS =
       Map.of(
-          OrderStatus.PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED),
+          OrderStatus.PENDING,
+              Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED, OrderStatus.PAYMENT_PENDING),
+          OrderStatus.PAYMENT_PENDING, Set.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED),
           OrderStatus.CONFIRMED, Set.of(OrderStatus.SHIPPED, OrderStatus.CANCELLED),
           OrderStatus.SHIPPED, Set.of(OrderStatus.DELIVERED),
           OrderStatus.DELIVERED, Set.of(),
@@ -169,5 +172,13 @@ public class OrderService {
     throw new OrderStatusChangeNotAllowedException(
         "User %d is not allowed to change order %d to %s"
             .formatted(actingUserId, order.getId(), newStatus));
+  }
+
+  @Transactional
+  public Order applyPaymentResult(Long orderId, PaymentResult result) {
+    Order order =
+        orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
+    order.setStatus(result.isSuccess() ? OrderStatus.CONFIRMED : OrderStatus.PAYMENT_PENDING);
+    return orderRepository.save(order);
   }
 }

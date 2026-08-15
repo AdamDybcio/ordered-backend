@@ -22,6 +22,7 @@ import pl.dybcio.ordered.order.dto.OrderRequest;
 import pl.dybcio.ordered.order.dto.OrderResponse;
 import pl.dybcio.ordered.order.dto.UpdateOrderStatusRequest;
 import pl.dybcio.ordered.order.entity.Order;
+import pl.dybcio.ordered.order.service.OrderPlacementOrchestrator;
 import pl.dybcio.ordered.order.service.OrderService;
 import pl.dybcio.ordered.user.entity.User;
 import pl.dybcio.ordered.user.repository.UserRepository;
@@ -33,6 +34,7 @@ import pl.dybcio.ordered.user.repository.UserRepository;
 public class OrderController {
 
   private final OrderService orderService;
+  private final OrderPlacementOrchestrator orderPlacementOrchestrator;
   private final UserRepository userRepository;
 
   @Operation(summary = "Place a new order")
@@ -48,13 +50,17 @@ public class OrderController {
     @ApiResponse(
         responseCode = "404",
         description = "One of the products does not exist",
+        content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+    @ApiResponse(
+        responseCode = "502",
+        description = "Payment provider unavailable",
         content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
   })
   @PostMapping
   public ResponseEntity<OrderResponse> placeOrder(
       @Valid @RequestBody OrderRequest request, Authentication authentication) {
     Long buyerId = currentUserId(authentication);
-    Order order = orderService.placeOrder(buyerId, request.items());
+    Order order = orderPlacementOrchestrator.placeOrderWithPayment(buyerId, request.items());
     return ResponseEntity.status(HttpStatus.CREATED).body(OrderResponse.from(order));
   }
 

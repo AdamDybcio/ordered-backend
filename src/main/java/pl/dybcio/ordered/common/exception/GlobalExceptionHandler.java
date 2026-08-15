@@ -14,6 +14,7 @@ import pl.dybcio.ordered.order.service.InsufficientStockException;
 import pl.dybcio.ordered.order.service.InvalidOrderStatusTransitionException;
 import pl.dybcio.ordered.order.service.OrderNotFoundException;
 import pl.dybcio.ordered.order.service.OrderStatusChangeNotAllowedException;
+import pl.dybcio.ordered.payment.service.PaymentProcessingException;
 import pl.dybcio.ordered.review.service.DuplicateReviewException;
 import pl.dybcio.ordered.review.service.ProductNotPurchasedException;
 import pl.dybcio.ordered.user.service.EmailAlreadyTakenException;
@@ -97,6 +98,13 @@ public class GlobalExceptionHandler {
   public ProblemDetail handleDuplicateReview(DuplicateReviewException ex) {
     ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
     pd.setTitle("Duplicate review");
+    return pd;
+  }
+
+  @ExceptionHandler(PaymentProcessingException.class)
+  public ProblemDetail handlePaymentProcessing(PaymentProcessingException ex) {
+    ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
+    pd.setTitle("Payment processing failed");
     return pd;
   }
 }

@@ -1,3 +1,6 @@
+-include .env
+export
+
 .PHONY: help up down restart logs build test test-unit test-integration verify format format-check clean run run-observability observability-up observability-down
 
 help: ## Show this help message
