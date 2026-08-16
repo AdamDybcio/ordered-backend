@@ -39,4 +39,8 @@ public class Payment {
   void onCreate() {
     this.createdAt = Instant.now();
   }
+
+  @Column(name = "retry_count", nullable = false)
+  @Builder.Default
+  private int retryCount = 0;
 }

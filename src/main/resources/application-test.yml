@@ -5,7 +5,7 @@ resilience4j:
         sliding-window-size: 4
         sliding-window-type: COUNT_BASED
         failure-rate-threshold: 50
-        wait-duration-in-open-state: 2s
+        wait-duration-in-open-state: 60s
         permitted-number-of-calls-in-half-open-state: 2
         register-health-indicator: true
   retry:

@@ -55,14 +55,10 @@ public class StripePaymentService implements PaymentService {
 
       PaymentIntent intent = PaymentIntent.create(params, requestOptions);
 
-      Payment payment =
-          paymentRepository.save(
-              Payment.builder()
-                  .order(order)
-                  .stripePaymentIntentId(intent.getId())
-                  .status(PaymentStatus.SUCCEEDED)
-                  .amount(order.getTotalAmount())
-                  .build());
+      Payment payment = findOrCreatePayment(order);
+      payment.setStripePaymentIntentId(intent.getId());
+      payment.setStatus(PaymentStatus.SUCCEEDED);
+      payment = paymentRepository.save(payment);
 
       return PaymentResult.success(payment);
     } catch (StripeException e) {
@@ -73,13 +69,18 @@ public class StripePaymentService implements PaymentService {
 
   private PaymentResult chargeFallback(Order order, Throwable t) {
     log.error("Payment fallback triggered for order {}: {}", order.getId(), t.getMessage());
-    Payment payment =
-        paymentRepository.save(
-            Payment.builder()
-                .order(order)
-                .status(PaymentStatus.PENDING_RETRY)
-                .amount(order.getTotalAmount())
-                .build());
+
+    Payment payment = findOrCreatePayment(order);
+    payment.setStatus(PaymentStatus.PENDING_RETRY);
+    payment.setRetryCount(payment.getRetryCount() + 1);
+    payment = paymentRepository.save(payment);
+
     return PaymentResult.pendingRetry(payment);
+  }
+
+  private Payment findOrCreatePayment(Order order) {
+    return paymentRepository
+        .findByOrderId(order.getId())
+        .orElseGet(() -> Payment.builder().order(order).amount(order.getTotalAmount()).build());
   }
 }

@@ -24,6 +24,7 @@ help: ## Show this help message
 	@echo   run-observability  - Run app locally with Prometheus metrics exposed
 	@echo   observability-up   - Start Prometheus + Grafana + Jaeger (distributed tracing)
 	@echo   observability-down - Stop Prometheus + Grafana + Jaeger
+	@echo   observability-restart - Restart Prometheus + Grafana + Jaeger
 
 up: ## Start local infrastructure in Docker
 	docker compose up -d
@@ -77,5 +78,8 @@ run-observability: ## Run app locally with Prometheus metrics exposed
 observability-up: ## Start Prometheus + Grafana + Jaeger (distributed tracing)
 	docker compose up -d prometheus grafana jaeger
 
-observability-down: ## Stop Prometheus + Grafana + Jaeger
-	docker compose stop prometheus grafana jaeger
+observability-down: ## Stop and remove Prometheus + Grafana + Jaeger
+	docker compose rm -sf prometheus grafana jaeger
+
+observability-restart: ## Restart Prometheus + Grafana + Jaeger
+	observability-down observability-up

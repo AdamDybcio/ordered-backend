@@ -181,4 +181,12 @@ public class OrderService {
     order.setStatus(result.isSuccess() ? OrderStatus.CONFIRMED : OrderStatus.PAYMENT_PENDING);
     return orderRepository.save(order);
   }
+
+  @Transactional
+  public Order cancelDueToPaymentFailure(Long orderId) {
+    Order order =
+        orderRepository.findById(orderId).orElseThrow(() -> new OrderNotFoundException(orderId));
+    order.setStatus(OrderStatus.CANCELLED);
+    return orderRepository.save(order);
+  }
 }

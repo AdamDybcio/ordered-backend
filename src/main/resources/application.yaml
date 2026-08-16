@@ -64,6 +64,9 @@ app:
     allowed-origins: http://localhost:3000,http://localhost:9090
   outbox:
     poll-interval-ms: 5000
+  payment:
+    retry-poll-interval-ms: 300000
+    max-retry-attempts: 5
 
 stripe:
   api-key: ${STRIPE_SECRET_KEY:sk_test_placeholder}
