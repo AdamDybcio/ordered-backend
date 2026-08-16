@@ -20,3 +20,8 @@ resilience4j:
 
 stripe:
   api-key: sk_test_dummy
+
+logging:
+  level:
+    org.apache.kafka: WARN
+    kafka: WARN

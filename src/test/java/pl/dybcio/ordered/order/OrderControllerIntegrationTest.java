@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.redis.testcontainers.RedisContainer;
 import java.math.BigDecimal;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,23 +11,22 @@ import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.test.annotation.DirtiesContext;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+import pl.dybcio.ordered.address.dto.AddressRequest;
+import pl.dybcio.ordered.address.dto.AddressResponse;
+import pl.dybcio.ordered.cart.dto.AddToCartRequest;
+import pl.dybcio.ordered.cart.dto.CartResponse;
 import pl.dybcio.ordered.catalog.entity.Product;
 import pl.dybcio.ordered.catalog.repository.ProductRepository;
 import pl.dybcio.ordered.inventory.entity.Stock;
 import pl.dybcio.ordered.inventory.repository.StockRepository;
-import pl.dybcio.ordered.order.dto.OrderItemRequest;
-import pl.dybcio.ordered.order.dto.OrderRequest;
 import pl.dybcio.ordered.order.dto.OrderResponse;
+import pl.dybcio.ordered.order.dto.PlaceOrderRequest;
 import pl.dybcio.ordered.order.dto.UpdateOrderStatusRequest;
 import pl.dybcio.ordered.order.entity.Order;
 import pl.dybcio.ordered.order.entity.OrderStatus;
@@ -77,6 +75,7 @@ class OrderControllerIntegrationTest {
     Product product = new Product();
     product.setName("Testowy produkt");
     product.setSeller(seller);
+    product.setActive(true);
     product = productRepository.save(product);
     productId = product.getId();
 
@@ -100,32 +99,124 @@ class OrderControllerIntegrationTest {
     return new HttpEntity<>(body, headers);
   }
 
+  private Long prepareCartAndAddress(String token, Long productId, int quantity) {
+    restTemplate.exchange(
+        "/api/v1/cart/items",
+        HttpMethod.POST,
+        authEntity(token, new AddToCartRequest(productId, quantity)),
+        CartResponse.class);
+
+    AddressRequest addressRequest =
+        new AddressRequest(
+            "Dom", "Jan Kowalski", "123456789", "Długa", "12", "3", "Toruń", "87-100", "PL");
+    AddressResponse address =
+        restTemplate
+            .exchange(
+                "/api/v1/addresses",
+                HttpMethod.POST,
+                authEntity(token, addressRequest),
+                AddressResponse.class)
+            .getBody();
+    return address.id();
+  }
+
   @Test
   void placeOrder_happyPath_returns201AndDecrementsStock() {
     String token = registerAndLogin("buyer1-" + System.nanoTime() + "@test.pl");
-    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 2)));
+    Long addressId = prepareCartAndAddress(token, productId, 2);
 
     ResponseEntity<OrderResponse> response =
         restTemplate.exchange(
-            "/api/v1/orders", HttpMethod.POST, authEntity(token, request), OrderResponse.class);
+            "/api/v1/orders",
+            HttpMethod.POST,
+            authEntity(token, new PlaceOrderRequest(addressId)),
+            OrderResponse.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-    assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().items()).hasSize(1);
     assertThat(response.getBody().totalAmount()).isEqualByComparingTo("39.98");
+    assertThat(response.getBody().deliveryAddress().city()).isEqualTo("Toruń");
 
     Stock stock = stockRepository.findById(productId).orElseThrow();
     assertThat(stock.getQuantity()).isEqualTo(3);
   }
 
   @Test
-  void placeOrder_insufficientStock_returns409AndLeavesStockUnchanged() {
-    String token = registerAndLogin("buyer2-" + System.nanoTime() + "@test.pl");
-    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 999)));
+  void placeOrder_clearsCartAfterSuccess() {
+    String token = registerAndLogin("buyer1b-" + System.nanoTime() + "@test.pl");
+    Long addressId = prepareCartAndAddress(token, productId, 1);
+
+    restTemplate.exchange(
+        "/api/v1/orders",
+        HttpMethod.POST,
+        authEntity(token, new PlaceOrderRequest(addressId)),
+        OrderResponse.class);
+
+    ResponseEntity<CartResponse> cartResponse =
+        restTemplate.exchange(
+            "/api/v1/cart", HttpMethod.GET, authEntity(token, null), CartResponse.class);
+    assertThat(cartResponse.getBody().items()).isEmpty();
+  }
+
+  @Test
+  void placeOrder_emptyCart_returns400() {
+    String token = registerAndLogin("buyer1c-" + System.nanoTime() + "@test.pl");
+
+    AddressRequest addressRequest =
+        new AddressRequest(
+            "Dom", "Jan Kowalski", "123456789", "Długa", "12", "3", "Toruń", "87-100", "PL");
+    AddressResponse address =
+        restTemplate
+            .exchange(
+                "/api/v1/addresses",
+                HttpMethod.POST,
+                authEntity(token, addressRequest),
+                AddressResponse.class)
+            .getBody();
 
     ResponseEntity<String> response =
         restTemplate.exchange(
-            "/api/v1/orders", HttpMethod.POST, authEntity(token, request), String.class);
+            "/api/v1/orders",
+            HttpMethod.POST,
+            authEntity(token, new PlaceOrderRequest(address.id())),
+            String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+  }
+
+  @Test
+  void placeOrder_addressNotOwnedByUser_returns404() {
+    String ownerToken = registerAndLogin("addrowner-" + System.nanoTime() + "@test.pl");
+    Long ownerAddressId = prepareCartAndAddress(ownerToken, productId, 1);
+
+    String intruderToken = registerAndLogin("intruder-order-" + System.nanoTime() + "@test.pl");
+    restTemplate.exchange(
+        "/api/v1/cart/items",
+        HttpMethod.POST,
+        authEntity(intruderToken, new AddToCartRequest(productId, 1)),
+        CartResponse.class);
+
+    ResponseEntity<String> response =
+        restTemplate.exchange(
+            "/api/v1/orders",
+            HttpMethod.POST,
+            authEntity(intruderToken, new PlaceOrderRequest(ownerAddressId)),
+            String.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
+  @Test
+  void placeOrder_insufficientStock_returns409AndLeavesStockUnchanged() {
+    String token = registerAndLogin("buyer2-" + System.nanoTime() + "@test.pl");
+    Long addressId = prepareCartAndAddress(token, productId, 999);
+
+    ResponseEntity<String> response =
+        restTemplate.exchange(
+            "/api/v1/orders",
+            HttpMethod.POST,
+            authEntity(token, new PlaceOrderRequest(addressId)),
+            String.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
 
@@ -135,10 +226,8 @@ class OrderControllerIntegrationTest {
 
   @Test
   void placeOrder_withoutToken_returns401() {
-    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
-
     ResponseEntity<String> response =
-        restTemplate.postForEntity("/api/v1/orders", request, String.class);
+        restTemplate.postForEntity("/api/v1/orders", new PlaceOrderRequest(1L), String.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
   }
@@ -146,11 +235,14 @@ class OrderControllerIntegrationTest {
   @Test
   void getOrder_ownOrder_returns200() {
     String token = registerAndLogin("buyer3-" + System.nanoTime() + "@test.pl");
-    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    Long addressId = prepareCartAndAddress(token, productId, 1);
     OrderResponse placed =
         restTemplate
             .exchange(
-                "/api/v1/orders", HttpMethod.POST, authEntity(token, request), OrderResponse.class)
+                "/api/v1/orders",
+                HttpMethod.POST,
+                authEntity(token, new PlaceOrderRequest(addressId)),
+                OrderResponse.class)
             .getBody();
 
     ResponseEntity<OrderResponse> response =
@@ -167,13 +259,13 @@ class OrderControllerIntegrationTest {
   @Test
   void getOrder_otherUsersOrder_returns404() {
     String ownerToken = registerAndLogin("owner-" + System.nanoTime() + "@test.pl");
-    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    Long addressId = prepareCartAndAddress(ownerToken, productId, 1);
     OrderResponse placed =
         restTemplate
             .exchange(
                 "/api/v1/orders",
                 HttpMethod.POST,
-                authEntity(ownerToken, request),
+                authEntity(ownerToken, new PlaceOrderRequest(addressId)),
                 OrderResponse.class)
             .getBody();
 
@@ -192,9 +284,12 @@ class OrderControllerIntegrationTest {
   @Test
   void listMyOrders_returnsPlacedOrder() {
     String token = registerAndLogin("buyer4-" + System.nanoTime() + "@test.pl");
-    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    Long addressId = prepareCartAndAddress(token, productId, 1);
     restTemplate.exchange(
-        "/api/v1/orders", HttpMethod.POST, authEntity(token, request), OrderResponse.class);
+        "/api/v1/orders",
+        HttpMethod.POST,
+        authEntity(token, new PlaceOrderRequest(addressId)),
+        OrderResponse.class);
 
     ResponseEntity<String> response =
         restTemplate.exchange(
@@ -207,11 +302,14 @@ class OrderControllerIntegrationTest {
   @Test
   void updateStatus_buyerCancelsOwnPendingOrder_returns200() {
     String token = registerAndLogin("buyer5-" + System.nanoTime() + "@test.pl");
-    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    Long addressId = prepareCartAndAddress(token, productId, 1);
     OrderResponse placed =
         restTemplate
             .exchange(
-                "/api/v1/orders", HttpMethod.POST, authEntity(token, request), OrderResponse.class)
+                "/api/v1/orders",
+                HttpMethod.POST,
+                authEntity(token, new PlaceOrderRequest(addressId)),
+                OrderResponse.class)
             .getBody();
 
     UpdateOrderStatusRequest statusRequest = new UpdateOrderStatusRequest(OrderStatus.CANCELLED);
@@ -230,11 +328,14 @@ class OrderControllerIntegrationTest {
   @Test
   void updateStatus_buyerTriesToConfirmOwnOrder_returns403() {
     String token = registerAndLogin("buyer6-" + System.nanoTime() + "@test.pl");
-    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    Long addressId = prepareCartAndAddress(token, productId, 1);
     OrderResponse placed =
         restTemplate
             .exchange(
-                "/api/v1/orders", HttpMethod.POST, authEntity(token, request), OrderResponse.class)
+                "/api/v1/orders",
+                HttpMethod.POST,
+                authEntity(token, new PlaceOrderRequest(addressId)),
+                OrderResponse.class)
             .getBody();
 
     UpdateOrderStatusRequest statusRequest = new UpdateOrderStatusRequest(OrderStatus.CONFIRMED);
@@ -258,19 +359,19 @@ class OrderControllerIntegrationTest {
     Product sellersProduct = new Product();
     sellersProduct.setName("Produkt sellera");
     sellersProduct.setSeller(sellerUser);
+    sellersProduct.setActive(true);
     sellersProduct = productRepository.save(sellersProduct);
     stockRepository.save(new Stock(sellersProduct.getId(), 5));
     pricingService.setPrice(sellersProduct.getId(), new BigDecimal("9.99"));
 
     String buyerToken = registerAndLogin("buyer7-" + System.nanoTime() + "@test.pl");
-    OrderRequest request =
-        new OrderRequest(List.of(new OrderItemRequest(sellersProduct.getId(), 1)));
+    Long addressId = prepareCartAndAddress(buyerToken, sellersProduct.getId(), 1);
     OrderResponse placed =
         restTemplate
             .exchange(
                 "/api/v1/orders",
                 HttpMethod.POST,
-                authEntity(buyerToken, request),
+                authEntity(buyerToken, new PlaceOrderRequest(addressId)),
                 OrderResponse.class)
             .getBody();
 
@@ -294,11 +395,14 @@ class OrderControllerIntegrationTest {
   @Test
   void updateStatus_invalidTransition_returns409() {
     String token = registerAndLogin("buyer8-" + System.nanoTime() + "@test.pl");
-    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    Long addressId = prepareCartAndAddress(token, productId, 1);
     OrderResponse placed =
         restTemplate
             .exchange(
-                "/api/v1/orders", HttpMethod.POST, authEntity(token, request), OrderResponse.class)
+                "/api/v1/orders",
+                HttpMethod.POST,
+                authEntity(token, new PlaceOrderRequest(addressId)),
+                OrderResponse.class)
             .getBody();
 
     Order order = orderRepository.findById(placed.id()).orElseThrow();
@@ -330,5 +434,33 @@ class OrderControllerIntegrationTest {
             String.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
+  @Test
+  void updateStatus_returnsOrderWithDeliveryAddressIntact() {
+    String token = registerAndLogin("buyer10-" + System.nanoTime() + "@test.pl");
+    Long addressId = prepareCartAndAddress(token, productId, 1);
+    OrderResponse placed =
+        restTemplate
+            .exchange(
+                "/api/v1/orders",
+                HttpMethod.POST,
+                authEntity(token, new PlaceOrderRequest(addressId)),
+                OrderResponse.class)
+            .getBody();
+
+    UpdateOrderStatusRequest statusRequest = new UpdateOrderStatusRequest(OrderStatus.CANCELLED);
+
+    ResponseEntity<OrderResponse> response =
+        restTemplate.exchange(
+            "/api/v1/orders/" + placed.id() + "/status",
+            HttpMethod.PATCH,
+            authEntity(token, statusRequest),
+            OrderResponse.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody().deliveryAddress()).isNotNull();
+    assertThat(response.getBody().deliveryAddress().city()).isEqualTo("Toruń");
+    assertThat(response.getBody().deliveryAddress().recipientName()).isEqualTo("Jan Kowalski");
   }
 }

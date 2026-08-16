@@ -1,7 +1,6 @@
-package pl.dybcio.ordered.order.entity;
+package pl.dybcio.ordered.cart.entity;
 
 import jakarta.persistence.*;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,39 +12,29 @@ import lombok.Setter;
 import pl.dybcio.ordered.user.entity.User;
 
 @Entity
-@Table(name = "orders")
+@Table(name = "carts")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Order {
+public class Cart {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "buyer_id", nullable = false)
-  private User buyer;
-
-  @Enumerated(EnumType.STRING)
-  @Column(nullable = false, length = 20)
-  @Builder.Default
-  private OrderStatus status = OrderStatus.PENDING;
-
-  @Column(name = "total_amount", nullable = false, precision = 19, scale = 2)
-  private BigDecimal totalAmount;
-
-  @Embedded private DeliveryAddress deliveryAddress;
+  @OneToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "user_id", nullable = false, unique = true)
+  private User user;
 
   @OneToMany(
-      mappedBy = "order",
+      mappedBy = "cart",
       cascade = CascadeType.ALL,
       orphanRemoval = true,
       fetch = FetchType.LAZY)
   @Builder.Default
-  private List<OrderItem> items = new ArrayList<>();
+  private List<CartItem> items = new ArrayList<>();
 
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
@@ -63,10 +52,5 @@ public class Order {
   @PreUpdate
   void onUpdate() {
     this.updatedAt = Instant.now();
-  }
-
-  public void addItem(OrderItem item) {
-    items.add(item);
-    item.setOrder(this);
   }
 }

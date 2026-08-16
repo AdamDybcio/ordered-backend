@@ -8,6 +8,10 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import pl.dybcio.ordered.address.service.AddressNotFoundException;
+import pl.dybcio.ordered.cart.service.CartItemNotFoundException;
+import pl.dybcio.ordered.cart.service.EmptyCartException;
+import pl.dybcio.ordered.catalog.service.ProductNotActiveException;
 import pl.dybcio.ordered.catalog.service.ProductNotFoundException;
 import pl.dybcio.ordered.catalog.service.ProductOwnershipException;
 import pl.dybcio.ordered.order.service.InsufficientStockException;
@@ -105,6 +109,28 @@ public class GlobalExceptionHandler {
   public ProblemDetail handlePaymentProcessing(PaymentProcessingException ex) {
     ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
     pd.setTitle("Payment processing failed");
+    return pd;
+  }
+
+  @ExceptionHandler(AddressNotFoundException.class)
+  public ProblemDetail handleAddressNotFound(AddressNotFoundException ex) {
+    return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+  }
+
+  @ExceptionHandler(CartItemNotFoundException.class)
+  public ProblemDetail handleCartItemNotFound(CartItemNotFoundException ex) {
+    return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+  }
+
+  @ExceptionHandler(EmptyCartException.class)
+  public ProblemDetail handleEmptyCart(EmptyCartException ex) {
+    return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+  }
+
+  @ExceptionHandler(ProductNotActiveException.class)
+  public ProblemDetail handleProductNotActive(ProductNotActiveException ex) {
+    ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    pd.setTitle("Product not available");
     return pd;
   }
 }

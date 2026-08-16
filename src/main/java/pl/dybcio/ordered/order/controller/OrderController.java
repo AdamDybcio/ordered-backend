@@ -18,8 +18,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
-import pl.dybcio.ordered.order.dto.OrderRequest;
 import pl.dybcio.ordered.order.dto.OrderResponse;
+import pl.dybcio.ordered.order.dto.PlaceOrderRequest;
 import pl.dybcio.ordered.order.dto.UpdateOrderStatusRequest;
 import pl.dybcio.ordered.order.entity.Order;
 import pl.dybcio.ordered.order.service.OrderPlacementOrchestrator;
@@ -44,12 +44,16 @@ public class OrderController {
         content = @Content(schema = @Schema(implementation = OrderResponse.class))),
     @ApiResponse(
         responseCode = "400",
-        description = "No items in the order / insufficient inventory",
+        description = "Cart is empty",
         content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
     @ApiResponse(responseCode = "401", description = "Unauthorized"),
     @ApiResponse(
         responseCode = "404",
         description = "One of the products does not exist",
+        content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Address not found",
         content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
     @ApiResponse(
         responseCode = "502",
@@ -58,9 +62,9 @@ public class OrderController {
   })
   @PostMapping
   public ResponseEntity<OrderResponse> placeOrder(
-      @Valid @RequestBody OrderRequest request, Authentication authentication) {
+      @Valid @RequestBody PlaceOrderRequest request, Authentication authentication) {
     Long buyerId = currentUserId(authentication);
-    Order order = orderPlacementOrchestrator.placeOrderWithPayment(buyerId, request.items());
+    Order order = orderPlacementOrchestrator.placeOrderWithPayment(buyerId, request.addressId());
     return ResponseEntity.status(HttpStatus.CREATED).body(OrderResponse.from(order));
   }
 
