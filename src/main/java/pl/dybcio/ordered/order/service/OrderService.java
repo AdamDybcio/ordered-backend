@@ -8,12 +8,20 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pl.dybcio.ordered.address.entity.Address;
+import pl.dybcio.ordered.address.repository.AddressRepository;
+import pl.dybcio.ordered.address.service.AddressNotFoundException;
+import pl.dybcio.ordered.cart.entity.Cart;
+import pl.dybcio.ordered.cart.entity.CartItem;
+import pl.dybcio.ordered.cart.repository.CartRepository;
+import pl.dybcio.ordered.cart.service.CartService;
+import pl.dybcio.ordered.cart.service.EmptyCartException;
 import pl.dybcio.ordered.catalog.entity.Product;
 import pl.dybcio.ordered.catalog.repository.ProductRepository;
 import pl.dybcio.ordered.catalog.service.ProductNotFoundException;
 import pl.dybcio.ordered.inventory.entity.Stock;
 import pl.dybcio.ordered.inventory.service.StockService;
-import pl.dybcio.ordered.order.dto.OrderItemRequest;
+import pl.dybcio.ordered.order.entity.DeliveryAddress;
 import pl.dybcio.ordered.order.entity.Order;
 import pl.dybcio.ordered.order.entity.OrderItem;
 import pl.dybcio.ordered.order.entity.OrderStatus;
@@ -37,29 +45,42 @@ public class OrderService {
   private final OutboxEventRepository outboxEventRepository;
   private final tools.jackson.databind.ObjectMapper objectMapper;
   private final StockService stockService;
+  private final CartRepository cartRepository;
+  private final CartService cartService;
+  private final AddressRepository addressRepository;
 
   @Transactional
-  public Order placeOrder(Long buyerId, List<OrderItemRequest> requestedItems) {
-    if (requestedItems == null || requestedItems.isEmpty()) {
-      throw new IllegalArgumentException("Order must contain at least one item");
-    }
-
+  public Order placeOrderFromCart(Long buyerId, Long addressId) {
     User buyer =
         userRepository
             .findById(buyerId)
             .orElseThrow(
                 () -> new IllegalStateException("Authenticated user not found: " + buyerId));
 
+    Address address =
+        addressRepository
+            .findByIdAndUserId(addressId, buyerId)
+            .orElseThrow(() -> new AddressNotFoundException(addressId));
+
+    Cart cart =
+        cartRepository.findByUserId(buyerId).orElseThrow(() -> new EmptyCartException(buyerId));
+
+    if (cart.getItems().isEmpty()) {
+      throw new EmptyCartException(buyerId);
+    }
+
     Map<Long, Integer> mergedQuantities =
-        requestedItems.stream()
+        cart.getItems().stream()
             .collect(
                 Collectors.toMap(
-                    OrderItemRequest::productId,
-                    OrderItemRequest::quantity,
-                    Integer::sum,
-                    () -> new TreeMap<>(Comparator.naturalOrder())));
+                    item -> item.getProduct().getId(), CartItem::getQuantity, Integer::sum));
 
-    Order order = Order.builder().buyer(buyer).status(OrderStatus.PENDING).build();
+    Order order =
+        Order.builder()
+            .buyer(buyer)
+            .status(OrderStatus.PENDING)
+            .deliveryAddress(DeliveryAddress.from(address))
+            .build();
 
     BigDecimal total = BigDecimal.ZERO;
 
@@ -103,6 +124,8 @@ public class OrderService {
             .eventType("OrderPlaced")
             .payload(objectMapper.writeValueAsString(payload))
             .build());
+
+    cartService.clearCart(buyerId);
 
     return savedOrder;
   }

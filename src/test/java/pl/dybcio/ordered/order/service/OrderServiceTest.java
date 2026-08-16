@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,12 +17,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import pl.dybcio.ordered.address.entity.Address;
+import pl.dybcio.ordered.address.repository.AddressRepository;
+import pl.dybcio.ordered.address.service.AddressNotFoundException;
+import pl.dybcio.ordered.cart.entity.Cart;
+import pl.dybcio.ordered.cart.entity.CartItem;
+import pl.dybcio.ordered.cart.repository.CartRepository;
+import pl.dybcio.ordered.cart.service.CartService;
+import pl.dybcio.ordered.cart.service.EmptyCartException;
 import pl.dybcio.ordered.catalog.entity.Product;
 import pl.dybcio.ordered.catalog.repository.ProductRepository;
 import pl.dybcio.ordered.catalog.service.ProductNotFoundException;
 import pl.dybcio.ordered.inventory.entity.Stock;
 import pl.dybcio.ordered.inventory.service.StockService;
-import pl.dybcio.ordered.order.dto.OrderItemRequest;
 import pl.dybcio.ordered.order.entity.Order;
 import pl.dybcio.ordered.order.entity.OrderItem;
 import pl.dybcio.ordered.order.entity.OrderStatus;
@@ -44,11 +50,15 @@ class OrderServiceTest {
   @Mock private OutboxEventRepository outboxEventRepository;
   @Mock private ObjectMapper objectMapper;
   @Mock private StockService stockService;
+  @Mock private CartRepository cartRepository;
+  @Mock private CartService cartService;
+  @Mock private AddressRepository addressRepository;
 
   @InjectMocks private OrderService orderService;
 
   private User buyer;
   private Product product;
+  private Address address;
 
   @BeforeEach
   void setUp() {
@@ -58,13 +68,37 @@ class OrderServiceTest {
     product = new Product();
     product.setId(10L);
     product.setName("Test product");
+
+    address =
+        Address.builder()
+            .id(50L)
+            .user(buyer)
+            .recipientName("Jan Kowalski")
+            .street("Długa")
+            .buildingNumber("12")
+            .city("Toruń")
+            .postalCode("87-100")
+            .country("PL")
+            .build();
+  }
+
+  private Cart cartWith(CartItem... items) {
+    Cart cart = Cart.builder().id(500L).user(buyer).build();
+    for (CartItem item : items) {
+      cart.getItems().add(item);
+    }
+    return cart;
   }
 
   @Test
-  void placeOrder_happyPath_createsOrderAndDecrementsStock() {
+  void placeOrderFromCart_happyPath_createsOrderDecrementsStockAndClearsCart() {
     Stock stock = new Stock(10L, 5);
+    CartItem cartItem = CartItem.builder().id(1L).product(product).quantity(2).build();
+    Cart cart = cartWith(cartItem);
 
     when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
+    when(addressRepository.findByIdAndUserId(50L, 1L)).thenReturn(Optional.of(address));
+    when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
     when(productRepository.findById(10L)).thenReturn(Optional.of(product));
     when(stockService.getQuantity(10L)).thenReturn(5);
     when(stockService.decrementForOrder(10L, 2))
@@ -83,36 +117,25 @@ class OrderServiceTest {
             });
     when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
-    Order result = orderService.placeOrder(1L, List.of(new OrderItemRequest(10L, 2)));
+    Order result = orderService.placeOrderFromCart(1L, 50L);
 
     assertThat(result.getItems()).hasSize(1);
     assertThat(result.getTotalAmount()).isEqualByComparingTo("39.98");
+    assertThat(result.getDeliveryAddress().getCity()).isEqualTo("Toruń");
     assertThat(stock.getQuantity()).isEqualTo(3);
-    verify(stockService).decrementForOrder(10L, 2);
-    verify(orderRepository).save(any(Order.class));
+    verify(cartService).clearCart(1L);
   }
 
   @Test
-  void placeOrder_insufficientStock_throwsAndDoesNotPersistAnything() {
-    Stock stock = new Stock(10L, 1);
-
-    when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
-    when(productRepository.findById(10L)).thenReturn(Optional.of(product));
-    when(stockService.getQuantity(10L)).thenReturn(1);
-    when(stockService.decrementForOrder(10L, 5)).thenReturn(stock); // ilość bez zmian = za mało
-
-    assertThatThrownBy(() -> orderService.placeOrder(1L, List.of(new OrderItemRequest(10L, 5))))
-        .isInstanceOf(InsufficientStockException.class)
-        .hasMessageContaining("10");
-
-    verify(orderRepository, never()).save(any(Order.class));
-  }
-
-  @Test
-  void placeOrder_mergesDuplicateProductIds_locksAndDecrementsOnce() {
+  void placeOrderFromCart_mergesDuplicateProductIdsAcrossItems() {
     Stock stock = new Stock(10L, 10);
+    CartItem itemA = CartItem.builder().id(1L).product(product).quantity(2).build();
+    CartItem itemB = CartItem.builder().id(2L).product(product).quantity(3).build();
+    Cart cart = cartWith(itemA, itemB);
 
     when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
+    when(addressRepository.findByIdAndUserId(50L, 1L)).thenReturn(Optional.of(address));
+    when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
     when(productRepository.findById(10L)).thenReturn(Optional.of(product));
     when(stockService.getQuantity(10L)).thenReturn(10);
     when(stockService.decrementForOrder(10L, 5))
@@ -131,39 +154,88 @@ class OrderServiceTest {
             });
     when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
-    List<OrderItemRequest> items =
-        List.of(new OrderItemRequest(10L, 2), new OrderItemRequest(10L, 3));
-
-    Order result = orderService.placeOrder(1L, items);
+    Order result = orderService.placeOrderFromCart(1L, 50L);
 
     assertThat(result.getItems()).hasSize(1);
     assertThat(result.getItems().get(0).getQuantity()).isEqualTo(5);
-    assertThat(stock.getQuantity()).isEqualTo(5);
     verify(stockService, times(1)).decrementForOrder(10L, 5);
   }
 
   @Test
-  void placeOrder_emptyItems_throwsIllegalArgumentException() {
-    assertThatThrownBy(() -> orderService.placeOrder(1L, List.of()))
-        .isInstanceOf(IllegalArgumentException.class);
+  void placeOrderFromCart_emptyCart_throwsEmptyCartException() {
+    when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
+    when(addressRepository.findByIdAndUserId(50L, 1L)).thenReturn(Optional.of(address));
+    when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cartWith()));
 
-    verifyNoInteractions(userRepository);
+    assertThatThrownBy(() -> orderService.placeOrderFromCart(1L, 50L))
+        .isInstanceOf(EmptyCartException.class);
+
+    verify(orderRepository, never()).save(any(Order.class));
+    verifyNoInteractions(stockService);
   }
 
   @Test
-  void placeOrder_userNotFound_throwsIllegalStateException() {
+  void placeOrderFromCart_noCartAtAll_throwsEmptyCartException() {
+    when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
+    when(addressRepository.findByIdAndUserId(50L, 1L)).thenReturn(Optional.of(address));
+    when(cartRepository.findByUserId(1L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> orderService.placeOrderFromCart(1L, 50L))
+        .isInstanceOf(EmptyCartException.class);
+  }
+
+  @Test
+  void placeOrderFromCart_addressNotOwnedByUser_throwsAddressNotFoundException() {
+    when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
+    when(addressRepository.findByIdAndUserId(50L, 1L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> orderService.placeOrderFromCart(1L, 50L))
+        .isInstanceOf(AddressNotFoundException.class);
+
+    verifyNoInteractions(cartRepository);
+  }
+
+  @Test
+  void placeOrderFromCart_insufficientStock_throwsAndDoesNotPersistOrder() {
+    Stock stock = new Stock(10L, 1);
+    CartItem cartItem = CartItem.builder().id(1L).product(product).quantity(5).build();
+    Cart cart = cartWith(cartItem);
+
+    when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
+    when(addressRepository.findByIdAndUserId(50L, 1L)).thenReturn(Optional.of(address));
+    when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+    when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+    when(stockService.getQuantity(10L)).thenReturn(1);
+    when(stockService.decrementForOrder(10L, 5)).thenReturn(stock);
+
+    assertThatThrownBy(() -> orderService.placeOrderFromCart(1L, 50L))
+        .isInstanceOf(InsufficientStockException.class);
+
+    verify(orderRepository, never()).save(any(Order.class));
+    verify(cartService, never()).clearCart(any());
+  }
+
+  @Test
+  void placeOrderFromCart_userNotFound_throwsIllegalStateException() {
     when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> orderService.placeOrder(1L, List.of(new OrderItemRequest(10L, 1))))
+    assertThatThrownBy(() -> orderService.placeOrderFromCart(1L, 50L))
         .isInstanceOf(IllegalStateException.class);
+
+    verifyNoInteractions(addressRepository, cartRepository);
   }
 
   @Test
-  void placeOrder_productNotFound_throwsProductNotFoundException() {
+  void placeOrderFromCart_productDeletedAfterAddedToCart_throwsProductNotFoundException() {
+    CartItem cartItem = CartItem.builder().id(1L).product(product).quantity(1).build();
+    Cart cart = cartWith(cartItem);
+
     when(userRepository.findById(1L)).thenReturn(Optional.of(buyer));
+    when(addressRepository.findByIdAndUserId(50L, 1L)).thenReturn(Optional.of(address));
+    when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
     when(productRepository.findById(10L)).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> orderService.placeOrder(1L, List.of(new OrderItemRequest(10L, 1))))
+    assertThatThrownBy(() -> orderService.placeOrderFromCart(1L, 50L))
         .isInstanceOf(ProductNotFoundException.class);
   }
 

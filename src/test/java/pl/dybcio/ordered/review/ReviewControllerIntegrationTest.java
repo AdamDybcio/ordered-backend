@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.redis.testcontainers.RedisContainer;
 import java.math.BigDecimal;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,13 +22,16 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+import pl.dybcio.ordered.address.dto.AddressRequest;
+import pl.dybcio.ordered.address.dto.AddressResponse;
+import pl.dybcio.ordered.cart.dto.AddToCartRequest;
+import pl.dybcio.ordered.cart.dto.CartResponse;
 import pl.dybcio.ordered.catalog.entity.Product;
 import pl.dybcio.ordered.catalog.repository.ProductRepository;
 import pl.dybcio.ordered.inventory.entity.Stock;
 import pl.dybcio.ordered.inventory.repository.StockRepository;
-import pl.dybcio.ordered.order.dto.OrderItemRequest;
-import pl.dybcio.ordered.order.dto.OrderRequest;
 import pl.dybcio.ordered.order.dto.OrderResponse;
+import pl.dybcio.ordered.order.dto.PlaceOrderRequest;
 import pl.dybcio.ordered.order.entity.Order;
 import pl.dybcio.ordered.order.entity.OrderStatus;
 import pl.dybcio.ordered.order.repository.OrderRepository;
@@ -105,14 +107,37 @@ class ReviewControllerIntegrationTest {
     return new HttpEntity<>(body, headers);
   }
 
+  /** Dodaje productId do koszyka usera i zakłada dla niego adres, zwraca addressId. */
+  private Long prepareCartAndAddress(String token, Long productId, int quantity) {
+    restTemplate.exchange(
+        "/api/v1/cart/items",
+        HttpMethod.POST,
+        authEntity(token, new AddToCartRequest(productId, quantity)),
+        CartResponse.class);
+
+    AddressRequest addressRequest =
+        new AddressRequest(
+            "Dom", "Jan Kowalski", "123456789", "Długa", "12", "3", "Toruń", "87-100", "PL");
+    AddressResponse address =
+        restTemplate
+            .exchange(
+                "/api/v1/addresses",
+                HttpMethod.POST,
+                authEntity(token, addressRequest),
+                AddressResponse.class)
+            .getBody();
+    return address.id();
+  }
+
   private Long placeAndDeliverOrder(String buyerToken) {
-    OrderRequest request = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    Long addressId = prepareCartAndAddress(buyerToken, productId, 1);
+
     OrderResponse placed =
         restTemplate
             .exchange(
                 "/api/v1/orders",
                 HttpMethod.POST,
-                authEntity(buyerToken, request),
+                authEntity(buyerToken, new PlaceOrderRequest(addressId)),
                 OrderResponse.class)
             .getBody();
 
@@ -156,9 +181,12 @@ class ReviewControllerIntegrationTest {
   @Test
   void addReview_pendingOrderOnly_returns403() {
     String token = registerAndLogin("buyer3-" + System.nanoTime() + "@test.pl");
-    OrderRequest orderRequest = new OrderRequest(List.of(new OrderItemRequest(productId, 1)));
+    Long addressId = prepareCartAndAddress(token, productId, 1);
     restTemplate.exchange(
-        "/api/v1/orders", HttpMethod.POST, authEntity(token, orderRequest), OrderResponse.class);
+        "/api/v1/orders",
+        HttpMethod.POST,
+        authEntity(token, new PlaceOrderRequest(addressId)),
+        OrderResponse.class);
 
     ReviewRequest reviewRequest = new ReviewRequest(productId, 4, "Jeszcze nie dostałem");
 
