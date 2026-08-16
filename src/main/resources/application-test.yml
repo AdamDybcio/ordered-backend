@@ -1,0 +1,22 @@
+resilience4j:
+  circuitbreaker:
+    instances:
+      stripePayments:
+        sliding-window-size: 4
+        sliding-window-type: COUNT_BASED
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 60s
+        permitted-number-of-calls-in-half-open-state: 2
+        register-health-indicator: true
+  retry:
+    instances:
+      stripePayments:
+        max-attempts: 3
+        wait-duration: 10ms
+        retry-exceptions:
+          - pl.dybcio.ordered.payment.service.PaymentProcessingException
+        ignore-exceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+
+stripe:
+  api-key: sk_test_dummy
