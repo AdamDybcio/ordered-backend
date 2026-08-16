@@ -34,8 +34,8 @@ public class StripePaymentService implements PaymentService {
     Stripe.apiKey = stripeApiKey;
   }
 
-  @CircuitBreaker(name = "stripePayments", fallbackMethod = "chargeFallback")
-  @Retry(name = "stripePayments")
+  @CircuitBreaker(name = "stripePayments")
+  @Retry(name = "stripePayments", fallbackMethod = "chargeFallback")
   public PaymentResult charge(Order order) {
     try {
       RequestOptions requestOptions =
