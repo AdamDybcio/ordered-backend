@@ -36,6 +36,8 @@ public class SecurityConfig {
     "/swagger-ui.html"
   };
 
+  private static final String[] INTERNAL_ENDPOINTS = {"/internal/v1/**"};
+
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
@@ -43,7 +45,13 @@ public class SecurityConfig {
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(
-            auth -> auth.requestMatchers(PUBLIC_ENDPOINTS).permitAll().anyRequest().authenticated())
+            auth ->
+                auth.requestMatchers(PUBLIC_ENDPOINTS)
+                    .permitAll()
+                    .requestMatchers(INTERNAL_ENDPOINTS)
+                    .permitAll()
+                    .anyRequest()
+                    .authenticated())
         .authenticationProvider(authenticationProvider)
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
         .exceptionHandling(

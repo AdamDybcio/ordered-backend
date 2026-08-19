@@ -59,4 +59,18 @@ public class StockService {
     stock.setUpdatedAt(LocalDateTime.now());
     return stockRepository.save(stock);
   }
+
+  @Transactional
+  @CacheEvict(value = CacheNames.PRODUCT_STOCK, key = "#productId")
+  public Stock restock(Long productId, int quantity) {
+    Stock stock =
+        stockRepository
+            .findByProductIdForUpdate(productId)
+            .orElseThrow(
+                () -> new IllegalStateException("Missing stock record for product " + productId));
+
+    stock.setQuantity(stock.getQuantity() + quantity);
+    stock.setUpdatedAt(LocalDateTime.now());
+    return stockRepository.save(stock);
+  }
 }

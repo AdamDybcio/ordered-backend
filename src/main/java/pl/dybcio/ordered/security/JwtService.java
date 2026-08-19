@@ -37,7 +37,7 @@ public class JwtService {
         .compact();
   }
 
-  public String generateToken(UserDetailsImpl userDetails) {
+  public String generateToken(pl.dybcio.ordered.security.UserDetailsImpl userDetails) {
     Date now = new Date();
     Date expiry = new Date(now.getTime() + expirationMs);
 

@@ -57,6 +57,14 @@ public class GlobalExceptionHandler {
     return problem;
   }
 
+  @ExceptionHandler(pl.dybcio.ordered.inventory.service.InsufficientStockException.class)
+  public ProblemDetail handleInsufficientStockCheckout(
+      pl.dybcio.ordered.inventory.service.InsufficientStockException ex) {
+    ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    problem.setTitle("Insufficient stock");
+    return problem;
+  }
+
   @ExceptionHandler(OrderNotFoundException.class)
   public ProblemDetail handleOrderNotFound(OrderNotFoundException ex) {
     ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
